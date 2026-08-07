@@ -91,9 +91,9 @@ LaunchedEffect(listState) {
 
 4. 取消是协作的：协程不会因为 `cancel()` 就立刻停，只有协程代码「配合」才响应：调用 suspend 函数（内部检查取消），或主动检查 `isActive` / `ensureActive()`。死循环里没有任何挂起点，取消就无效——这就是「协作取消」。catch 捕获到 `CancellationException` 后必须重新抛出，否则取消被吞掉，协程继续跑。
 
-5. Flow 操作符速记：map / filter 做转换过滤；catch 捕获上游异常，必须放在出错源头之后、collect 之前，放错位置捕获不到；retry 失败重试；flowOn 切上游线程；distinctUntilChanged 去重（避免重复数据触发重组）；conflate 丢弃来不及处理的值（只保留最新，适合高频事件）；combine 合并两个流的最新值（比如「登录状态 + 用户信息」合成一个 UI 状态）。冷流每次 collect 才执行、数据一次性（网络请求）；热流（SharedFlow / StateFlow）常驻、与收集者数量无关，UI 状态类数据用 StateFlow。
+5. Flow 操作符速记：map / filter 做转换过滤；`catch` 只捕获它上游产生的异常，不会捕获 `collect` 下游代码抛出的异常；`try/catch` 包住 `collect` 可以捕获整个收集调用向外抛出的异常。retry 负责按策略重试；flowOn 切换上游上下文；distinctUntilChanged 去重；conflate 在消费者跟不上时保留较新的值；combine 合并多个流的最新值。冷流通常在每次 collect 时重新执行，可以发出一个或多个值；StateFlow/SharedFlow 是热流，但其上游是否运行还取决于创建方式和 SharingStarted 策略。
 
-6. Compose 里的固定搭配：`LaunchedEffect(Unit)` 进入组合时启动协程、离开组合自动取消，生命周期与组合对齐；`viewModelScope` 随 ViewModel 销毁取消。页面数据加载、事件监听用 LaunchedEffect；只有「重组期间也要保持」的协程才用 rememberCoroutineScope。
+6. Compose 里的常见搭配：`LaunchedEffect(key)` 进入组合或 key 变化时启动协程，离开组合自动取消；`viewModelScope` 随 ViewModel 销毁取消。屏幕级业务数据通常由 ViewModel 响应明确事件或在初始化时加载；只与当前组合节点有关的 UI 副作用才放 LaunchedEffect。`rememberCoroutineScope` 适合从点击等回调启动并由当前组合节点管理的协程。
 
 ## 5. 实际执行过程
 
@@ -133,7 +133,7 @@ final json = await compute(parseJson, raw); // compute() 在后台 isolate 执�
 
 1. 用 GlobalScope 启动长期任务：不随页面销毁而取消，任务泄漏、回调打到已销毁的 UI 上直接崩。任何界面相关协程都用 viewModelScope / LaunchedEffect。
 2. 在 Main 上解析大 JSON：主线程跑 CPU 重活 → 掉帧、卡顿甚至 ANR。要么用内部已切线程的 suspend 库，要么显式 `withContext(Dispatchers.Default)`。
-3. catch 放错位置：catch 必须放在「可能抛异常的源头之后、collect 之前」的管道里。把 catch 写在 collect 之后、或单独用 try 包住 collect，异常在管道外抛出，永远接不住。
+3. 误解 catch 的边界：Flow 的 `catch` 只处理上游异常；`collect` 回调自身的异常属于下游，不会被前面的 `catch` 捕获。需要统一处理整个收集调用时，可以在外层使用 `try/catch`，但必须继续传播 CancellationException。
 4. 混用 coroutineScope 与 supervisorScope：失败要连坐却用了 supervisor，两个请求各挂各的，返回残缺数据；互不相关却用了 coroutineScope，一个任务失败把兄弟任务也杀了。先问「失败要不要连坐」再选。
 5. 忽略 flowOn 的位置：flowOn 只影响它之前的上游。把 flowOn 写在 collect 前想切 collect 的线程，是无效的。
 6. catch 吞掉 CancellationException：取消被当成普通异常处理，协程不响应取消，任务继续在后台跑。

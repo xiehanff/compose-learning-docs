@@ -4,9 +4,9 @@
 
 学完后，你应当能够：
 
-- 用 Layout Inspector 查看组合树、重组计数、跳过次数与布局耗时，定位「为什么这里一直在重组」
-- 配置 Compose 编译器报告，读懂 classes.txt / metrics 里的 `@bad`、`unstable` 标记
-- 掌握弱化重组的思路：状态提升到最小范围、稳定参数、避免 Lambda 传递
+- 用 Layout Inspector 查看组合树、重组与跳过计数，定位可疑范围
+- 配置 Compose 编译器报告，结合当前编译器产物检查稳定性推断
+- 掌握减少无效工作的思路：缩小状态读取范围、保持状态模型可靠、避免错误优化
 - 用 Macrobenchmark 的 Startup 与 Frame 指标做可复现的性能测量，从「猜」转向「测」
 
 ## 2. 项目中的位置
@@ -36,17 +36,17 @@ composeCompiler {
 }
 ```
 
-构建后 `compose_compiler/` 下生成 classes.txt（类稳定性）与 compose-reports.txt（可跳过 / 可重启列表）；`compose_metrics/` 下生成模块级汇总。
+构建后会在配置目录中生成稳定性、Composable 与模块指标等文本/CSV/JSON 文件。具体文件名可能随 Compose Compiler 版本变化，应以当前目录实际产物和对应版本文档为准。
 
 场景二：一条典型「过度重组」代码与修复（把状态从大范围降到小范围）。
 
 ```kotlin
-// 错误示范：状态挂在页面级，任何输入变化整页重组
+// 可优化示范：页面级读取输入状态，输入变化会使 ProfileScreen 进入重组
 @Composable
 fun ProfileScreen() {
     var name by remember { mutableStateOf("") }
     Column {
-        Header()         // 与 name 无关，却被反复重组
+        Header()         // 调用会被重新访问；满足跳过条件时不会执行函数体
         OutlinedTextField(value = name, onValueChange = { name = it })
         StatsChart()     // 昂贵图表也被反复重组
     }
@@ -69,7 +69,7 @@ private fun NameEditor() {
 }
 ```
 
-场景三：Macrobenchmark 冷启动与帧率测量（androidTest 源码集）。
+场景三：在独立 `benchmark` 测试模块中编写 Macrobenchmark。该模块使用 `com.android.test`，并把 app 配置为 target project；不要直接把 Macrobenchmark 当作普通 app 模块 UI 测试。
 
 ```kotlin
 @RunWith(AndroidJUnit4::class)
@@ -90,31 +90,31 @@ class StartupBenchmark {
 }
 ```
 
-运行：`./gradlew :app:connectedBenchmarkAndroidTest`，需要 profile 构建变体。
+任务名由 benchmark 模块、构建类型和设备配置共同决定。先运行 `./gradlew :benchmark:tasks` 查看实际任务；使用 Android Studio 模板时，也可以直接运行生成的 Benchmark 配置。被测 app 应使用接近 Release 且可供 Macrobenchmark 测量的专用构建类型。
 
 ## 4. 逐步解释
 
-1. Layout Inspector 能看什么：在 Android Studio 里 Attach 到运行中的进程，切到 Compose 视图，能看到每个节点的组合信息——重组次数（Recomposition count）、跳过次数（Skipped count）和布局耗时。判断依据：节点重组次数高但跳过次数也高，说明它经常被调用但什么都没做，问题不大；跳过次数低、重组次数高，才是真正的浪费。布局耗时高说明问题在 measure / layout 而不是组合。
+1. Layout Inspector 能看什么：在 Android Studio 里连接运行中的进程并查看 Compose 节点，可以观察组合结构、重组次数和跳过次数。计数只能帮助发现可疑范围，不能单独证明卡顿；最终仍要结合系统 Trace、Macrobenchmark 或其他帧指标确认真实耗时。
 
-2. 编译器报告是什么：Compose 编译器在编译期生成两份报告。classes.txt 列出每个类的稳定性：稳定的类可放心参与跳过判断，标了 `@bad` / `unstable` 的类说明「本该稳定却标错 / 被推断为不稳定」；compose-reports.txt 列出每个 composable 是否 restartable（可重组）、skippable（参数没变时可跳过）。一个 composable 的参数里有 unstable 类型，它就无法 skippable——参数一变，哪怕其他参数没变也要全量重组。
+2. 编译器报告是什么：Compose 编译器可以输出类型稳定性、Composable 属性和模块指标，帮助解释 restartable、skippable 等推断。Kotlin 2.0.20 起默认启用强跳过后，带不稳定参数的 restartable Composable 也可能成为 skippable，因此不能再使用“出现 unstable 就一定无法跳过”的旧结论。
 
-3. 不稳定参数为什么致命：Compose 靠「参数是否稳定」判断要不要跳过重组。不可变 data class 的值比较是可靠的，编译器认定它稳定；而 interface、带 var 属性的普通类、集合（List 的 equals 不可靠）常被标记 unstable。让参数稳定的办法：参数用不可变 data class、`@Immutable` / `@Stable` 注解（前提是类真的不可变——在可变类上乱标会引入 bug）、Lambda 用 remember 包住、列表用 immutable 库的 PersistentList。
+3. 不稳定参数意味着什么：编译器不能确认变化能被可靠观察。强跳过模式对稳定参数使用 `equals`，对不稳定参数使用引用相等。`List` 被认为不稳定，是因为接口不能保证内容不可变，并不是因为 Kotlin `List.equals` 不可靠。可选方案包括不可变 UI model、SnapshotState 集合、kotlinx immutable collection，或在确实满足契约时使用稳定性注解。先测量再选择，便宜的重组可能比复杂的相等检查更划算。
 
-4. 弱化重组的三板斧：① 状态提升到最小范围——谁用状态谁持有，见场景二的修复；② 参数保持稳定——不可变 data class、`@Immutable` 名副其实；③ 避免把新 Lambda 传给子 composable——每次重组都新建 Lambda，子项参数「看起来变了」被迫重组，用 remember 缓存或改传稳定回调。
+4. 减少无效工作的顺序：① 把状态读取移动到真正消费它的最小范围；② 保持 UI State 不可变、变化方式清晰；③ 检查昂贵计算、布局和绘制是否真的重复执行。强跳过模式会自动记忆组合中创建的多数 lambda，不应再把“手动 remember 每个 lambda”当成固定优化套路。
 
-5. 从猜测到测量：肉眼和直觉判断性能最不可靠。正确流程：先写 Macrobenchmark 建立基线 → 用 Layout Inspector / 编译器报告定位 → 修改 → 再跑同一个 benchmark 对比。StartupTimingMetric 测冷 / 温启动时间，FrameTimingMetric 统计帧时长分布与掉帧率。注意 benchmark 必须跑 profile 构建：debug 构建没有优化、测出来虚低；release 不可调试且 R8 可能改变行为；profile 是「接近线上又有可测性」的中间态。
+5. 从猜测到测量：先在独立 benchmark 模块建立基线，再用 Layout Inspector、Trace 和编译器报告缩小范围，修改后运行同一组 benchmark 对比。Debug 构建不代表线上性能；被测构建应使用模板生成或自行配置的 release-like benchmark Build Type，并明确是否启用 R8/Baseline Profile，保证前后条件一致。
 
 ## 5. 实际执行过程
 
 1. 开发者在首页输入框打字，感觉卡顿，先用 Layout Inspector Attach 进程，看到整页组合树的重组次数在疯狂增长，Header 和图表节点同样在涨。
-2. 查看编译器报告 classes.txt：发现 ProfileScreen 传给子项的某个参数类被标 `@bad` / unstable。
+2. 查看当前编译器生成的稳定性与 Composable 报告，发现某参数被推断为 unstable，并核对强跳过下使用的比较策略。
 3. 按报告把状态下沉到 NameEditor，参数换成不可变 data class 并确保 `@Immutable` 名副其实，重新构建。
-4. 再跑 Layout Inspector：页面级节点重组次数归零，只有 NameEditor 在变。
-5. 用 Macrobenchmark 的 StartupTimingMetric + FrameTimingMetric 在 profile 构建上跑 5 轮，确认帧率指标改善，把优化固化成可回归的测试。
+4. 再跑 Layout Inspector，确认状态读取范围缩小；Header/图表是否真正减少工作仍以 Trace 或基准数据为准。
+5. 用独立 benchmark 模块在相同构建条件和设备上重复测量，确认指标改善后再保留优化。
 
 ## 6. Flutter / Dart 3 对照
 
-先看相似点：两个框架都有「组件 / 构建层」与「渲染层」的两层剖析。Flutter 的对应物是 DevTools Timeline（逐帧看 build / layout / paint 耗时）与 Performance overlay（真机显示 UI 线程与栅格线程的帧耗时），`flutter run --profile` 对应 Compose 的 profile 构建：
+先看相似点：两个框架都有「组件 / 构建层」与「渲染层」的多层分析工具。Flutter 通常使用 `flutter run --profile` 配合 DevTools Timeline；Android Macrobenchmark 则使用独立测试模块和 release-like benchmark 构建。两者都不能用普通 Debug 性能代表线上：
 
 ```dart
 // 运行时打开 Performance overlay
@@ -132,24 +132,29 @@ MaterialApp(
 
 1. 凭感觉优化：不看任何数据就把 Column 改 LazyColumn、到处乱加 remember，改完也不知道有没有效。任何优化先建 baseline。
 2. 只盯重组次数：重组次数少不等于快——布局耗时、绘制耗时（Layout Inspector 的 Layout time）可能才是大头。「卡顿、重组过多、布局过深」三类问题要三类工具分别看。
-3. 把编译器报告当摆设：生成了 classes.txt 从不看，unstable 参数一直躺在代码里。报告是免费的体检，编译一次就能看。
-4. 在 debug 或 release 下测性能：debug 构建没有编译期优化、帧率虚低；release 不可调试、R8 可能改变行为；Macrobenchmark 必须配 profile 构建变体，否则数字没有参考意义。
+3. 把编译器报告当结论或完全不看：报告用于解释编译器推断，但 unstable 不是必须优化的错误，仍需结合真实耗时。
+4. 直接用 Debug 代表线上性能，或前后使用不同构建条件：应使用 release-like benchmark 构建，并固定设备、R8、Baseline Profile 与测试步骤。
 5. 在可变类上乱标 `@Immutable`：为了「让报告变绿」把带 var 的类标成不可变，跳过重组后行为错乱——这是用性能换正确性，得不偿失。
 
 ## 8. 本章检查题
 
 1. Layout Inspector 能看哪些信息？怎么判断真正的重组浪费？
 2. 编译器报告里的 unstable 意味着什么？会造成什么后果？
-3. 为什么性能测试必须用 profile 构建？
-4. 弱化重组的三板斧是什么？
+3. 为什么不能使用普通 Debug 构建代表线上性能？
+4. 减少无效工作的正确顺序是什么？
 
 答案：
 
-1. 组合树、每个节点的重组次数与跳过次数、布局耗时。判断标准：重组次数高且跳过次数低才是浪费；跳过次数高说明经常被调用但什么都没做。
-2. 该参数类型被编译器判定为「不稳定」——值是否变化无法可靠判断，导致包含它的 composable 无法标记 skippable，参数一变就全量重组。后果是性能下降、重组范围失控。
-3. debug 构建没有编译期优化，测出来虚低；release 不可调试且 R8 可能改变行为；profile 构建保留优化、又支持调试与基准测量，是「接近线上又有可测性」的中间态。
-4. 状态提升到最小范围；参数保持稳定（不可变 data class、`@Immutable` 名副其实）；避免每次重组都创建新 Lambda。
+1. 组合树、节点的重组和跳过计数等信息。计数用于发现可疑范围，是否真正浪费必须结合 Trace 或基准耗时判断。
+2. 编译器不能确认它的变化能被可靠观察；强跳过模式下通常按引用相等比较。它是诊断线索，不是性能问题的直接证据。
+3. Debug 缺少线上优化；基准测试应使用独立 benchmark 模块和固定的 release-like 被测构建，保持前后条件一致。
+4. 缩小状态读取范围；保持状态模型和变化方式可靠；用工具找到真正重复的昂贵工作，再做最小优化。
 
 ## 9. 本章总结
 
-性能优化的第一原则是「先测量，再动手」：Layout Inspector 看运行时组合行为，编译器报告看编译期稳定性，Macrobenchmark 建立可复现的基线。三类工具对应三类问题，配合「状态下沉、参数稳定、Lambda 缓存」三板斧，卡顿的定位与修复就不再靠猜。
+性能优化的第一原则是「先测量，再动手」：Layout Inspector 和 Trace 帮助观察运行时行为，编译器报告解释编译期推断，独立 Macrobenchmark 模块建立可复现基线。计数和 unstable 标记只是线索，只有相同条件下的耗时数据才能证明优化有效。
+
+官方参考：
+
+- [Macrobenchmark overview](https://developer.android.com/topic/performance/benchmarking/macrobenchmark-overview)
+- [Diagnose stability issues](https://developer.android.com/develop/ui/compose/performance/stability/diagnose)

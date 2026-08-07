@@ -4,9 +4,9 @@
 
 学完后，你应当能够：
 
-- 用 semantics、contentDescription、clearAndSetSemantics 构建无障碍语义
+- 用 semantics、contentDescription、hideFromAccessibility 与 clearAndSetSemantics 构建无障碍语义
 - 遵守 48dp 触控目标与字体缩放规范，并用 TalkBack 实测验证
-- 编写 baseline-prof.txt 规则并接入 profileinstaller，提升冷启动性能
+- 使用 Baseline Profile Generator、Gradle 插件和关键用户路径生成并验证 Profile
 - 掌握 R8 混淆、资源缩减与 AAB 发布的检查清单
 
 ## 2. 项目中的位置
@@ -14,9 +14,9 @@
 进阶篇不再局限于 compose_demo 项目，本章使用通用 Compose API。
 
 - `androidx.compose.ui.semantics`：semantics、clearAndSetSemantics、mergeDescendants
-- `androidx.compose.foundation`：minimumInteractiveComponentSize（clickable 默认兜底）
-- `androidx.profileinstaller:profileinstaller`、`androidx.benchmark:benchmark-macro-junit4`
-- AGP 构建配置：minifyEnabled、shrinkResources、proguard-rules.pro、baseline-prof
+- `androidx.compose.foundation`：clickable、sizeIn 与 Material 最小触控目标
+- `androidx.benchmark:benchmark-macro-junit4`、`androidx.baselineprofile` Gradle 插件
+- AGP 构建配置：`isMinifyEnabled`、`isShrinkResources`、`proguard-rules.pro`
 
 ## 3. 项目源码片段
 
@@ -32,12 +32,16 @@ Image(
         .clickable { toggleFavorite() }
 )
 
-// 纯装饰图标：读屏不应朗读，连同子树语义一起清空
+// 纯装饰图片：Image 没有需要表达的含义时传 null 即可
 Image(
     painter = rememberVectorPainter(Icons.Outlined.Star),
-    contentDescription = null, // 传 null 只是不朗读自身
-    modifier = Modifier.clearAndSetSemantics {} // 连子树语义一起清空
+    contentDescription = null
 )
+
+// 装饰性父容器只需对无障碍隐藏、但仍希望测试读取语义时
+Box(Modifier.semantics { hideFromAccessibility() }) {
+    /* watermark or decorative content */
+}
 
 // 合并子语义：让"订单卡片"作为一个整体被朗读
 Card(Modifier.semantics(mergeDescendants = true) {
@@ -45,43 +49,49 @@ Card(Modifier.semantics(mergeDescendants = true) {
 }) { /* 卡片内容 */ }
 ```
 
-场景二：baseline-prof.txt 规则文件（app/src/main/baseline-prof.txt）。
+场景二：在 Android Studio 创建 Baseline Profile Generator 模块，并用自动化关键用户路径收集规则。
 
-```
-# 启动路径上的类与热点方法
-Lcom/example/app/MainActivity;
-Lcom/example/app/MainActivity;->onCreate(Landroid/os/Bundle;)V
-Lcom/example/app/ui/HomeScreenKt;->HomeScreen(Landroidx/compose/runtime/Composer;I)V
+```kotlin
+@RunWith(AndroidJUnit4::class)
+class BaselineProfileGenerator {
+    @get:Rule
+    val baselineProfileRule = BaselineProfileRule()
 
-# 排除不需要预热的路径
-!Lcom/example/app/debug/DebugOnlyClass;
-!Lcom/example/app/Logger;->d(Ljava/lang/String;)V
+    @Test
+    fun generate() = baselineProfileRule.collect(
+        packageName = "com.example.app"
+    ) {
+        startActivityAndWait()
+        // 继续执行真实关键用户路径：进入列表、滚动、打开详情等
+    }
+}
 ```
 
 ## 4. 逐步解释
 
 1. 语义是读屏的"台词本"：TalkBack 不会"看"界面，它朗读语义树。Text 默认朗读文本；Image 需要 contentDescription（传 null 表示纯装饰）；clickable 会自动给节点附加 click 动作语义。所以给可点击元素补充描述是最基本的无障碍。
 
-2. mergeDescendants 的默认行为：Compose 语义默认不合并，但 clickable、Card 等交互组件内部会开启合并——子节点语义并入父节点，朗读时是"按钮：收藏"整体一句话，而不是逐字读。需要显式定制合并内容时，用 semantics(mergeDescendants = true) { contentDescription = ... } 覆盖。
+2. mergeDescendants 的默认行为：Compose 语义默认不合并；`clickable`、`toggleable`、Button，以及使用可点击重载的 Card 等交互节点会合并后代语义。普通、不可点击的 Card 不能一概认为会自动合并。需要把一组信息表达成整体时，可以显式使用 `semantics(mergeDescendants = true)`，但应避免把内部仍需独立操作的按钮一起吞并。
 
-3. clearAndSetSemantics：装饰性元素（背景图、纯图标、分割线）对读屏用户是噪音。Modifier.clearAndSetSemantics {} 会把自身及子树的所有语义清空，只保留一个空节点。注意 contentDescription = null 只让该节点不朗读，不影响子树——这正是两者不能互相替代的原因。
+3. 隐藏、清除与覆盖不是同一件事：单个纯装饰 Image 使用 `contentDescription = null`；内容只需对无障碍服务隐藏、但仍希望测试等消费者访问时，可以使用 `hideFromAccessibility()`；`clearAndSetSemantics {}` 会清除自身和后代对无障碍、测试、自动填充等消费者提供的原语义，适合确实需要整体清除或重新定义自定义控件语义的场景，不应给所有装饰图片机械套用。
 
-4. 触控目标与字体缩放：Material 规范要求触控目标 ≥48dp 物理尺寸。clickable 默认带 minimumInteractiveComponentSize 兜底，但自定义手势（如 pointerInput 画的拖拽手柄）要手动保证尺寸。字号方面，一律用 sp 语义（Text 默认就是 sp），不要全局改 LocalDensity 来"适配"字体——那会破坏系统无障碍缩放。
+4. 触控目标与字体缩放：Material 规范要求触控目标至少 48dp。Compose 会扩展过小 clickable 的触摸区域，但相邻小控件可能因此出现重叠，所以仍应使用 `sizeIn(minWidth = 48.dp, minHeight = 48.dp)` 等方式提供足够布局空间；自定义 pointerInput 更要手动保证尺寸。字号使用 sp，并尊重系统字体缩放，不要全局篡改 Density。
 
-5. Baseline Profile 是什么：ART 的 JIT 在应用首次启动时逐方法解释 + 编译，冷启动慢。Baseline Profile 是预生成的 AOT 编译清单（baseline-prof.txt 规则 + profileinstaller 在安装后/启动时把 profile 装入设备），让热点类方法直接编译好，冷启动与首帧显著提速。规则格式：L类名; 表示整类，L类名;->方法签名 表示单个方法，! 前缀表示排除。
+5. Baseline Profile 是什么：它记录应用启动和关键用户路径中的热点代码，帮助 ART 提前优化这些路径，改善首次启动、滚动和导航等体验。当前推荐通过独立 Generator/Benchmark 模块、BaselineProfileRule 与 Gradle 插件自动生成，而不是让初学者手工猜测类和方法规则。生成任务会把结果复制到目标 app 对应的 generated baselineProfiles 源目录，并由构建工具打包。
 
-6. 验证与发布检查：用 Macrobenchmark（benchmark-macro-junit4）在真机上对比有无 Baseline Profile 的启动耗时；发布前检查 R8 混淆规则——反射、序列化、native、注解等动态引用的类要 keep；资源缩减 shrinkResources 会删除未引用资源，代码里动态引用（反射取资源 ID）的要 keep 或 tools:keep；用 App Bundle（AAB）而非 APK 发布，体积更小；至少在 minSdk 与主流 API 级别设备上跑回归。
+6. 验证与发布检查：用 Macrobenchmark 在物理设备上分别以 `CompilationMode.None` 和 `CompilationMode.Partial` 等明确模式比较，不能只检查文件是否存在。发布前检查 R8 缺失类和必要 Keep 规则；资源缩减要覆盖动态资源引用；生成 AAB 并在最低、主流和目标 API 设备上回归。ProfileInstaller 是否需要显式依赖取决于 AGP、安装方式和支持的 Android 版本，不应写成所有现代项目的固定必选步骤。
 
 记住：无障碍是功能不是加分项；性能优化要可测量；发布清单要逐项过。
 
 ## 5. 实际执行过程
 
-1. 开发期：给所有有意义的图片补 contentDescription，装饰元素加 clearAndSetSemantics，检查触控目标与字体缩放。
+1. 开发期：给有意义的图片补 contentDescription，纯装饰 Image 传 null；只有需要隐藏整组内容或重写语义时才选择 hideFromAccessibility/clearAndSetSemantics；同时检查触控目标与字体缩放。
 2. TalkBack 实测：开启读屏，从首页扫到详情页，确认朗读顺序、合并文案、焦点可达性符合预期。
-3. 性能期：编写 baseline-prof.txt，在 build.gradle 配置 profileinstaller 依赖与 profile 规则，AGP 打包时生成 profile 并随 APK/AAB 分发。
-4. 验证期：用 Macrobenchmark 在 Pixel 等真机上测量冷启动时间，对比开启前后数据（通常可带来 20%~30% 的启动性能提升）。
-5. 发布期：开启 minifyEnabled 与 shrinkResources，检查 R8 映射与 keep 规则；构建 AAB 检查体积；在 minSdk 与主流版本设备上跑回归测试。
-6. 灰度发布：监听崩溃与 ANR 上报，异常时快速回滚。
+3. 性能期：使用 Android Studio 模板创建 Baseline Profile Generator 模块，编写覆盖启动、列表滚动和核心导航的关键用户路径。
+4. 生成期：运行 `:app:generateBaselineProfile` 或实际变体对应任务，确认生成文件被复制到目标模块；任务名以当前插件和项目配置为准。
+5. 验证期：在固定物理设备和构建条件下使用 Macrobenchmark 比较不同 CompilationMode，记录中位数和波动，不预设固定百分比收益。
+6. 发布期：开启 `isMinifyEnabled` 与 `isShrinkResources`，检查 R8 映射和必要 Keep 规则；构建 AAB；在最低、主流和目标 API 设备上回归。
+7. 灰度发布：监听崩溃与 ANR 上报，异常时快速回滚。
 
 ## 6. Flutter / Dart 3 对照
 
@@ -107,33 +117,39 @@ testWidgets('触控目标测试', (tester) async {
 });
 ```
 
-相似点：语义模型同源（SemanticsNode 与语义树都是各自框架的无障碍抽象）；Semantics(label) 对应 contentDescription；ExcludeSemantics 对应 clearAndSetSemantics；语义合并（MergeSemantics）两个框架都有；触控目标 48dp 是共同规范；flutter_test 的 meetsGuideline 可自动检查触控目标。
+相似点：两端都有语义树；Semantics(label) 与 contentDescription 都用于表达含义；ExcludeSemantics 与 Compose 的隐藏/清除 API 目的相近但作用范围不完全等价；两端都有语义合并和最小触控目标规范。
 
-本质区别：Baseline Profile 是 Android 特有的优化，Flutter 没有直接等价物——Dart AOT 编译在构建期已完成，Flutter 侧对应的是 Impeller / Skia 着色器预热这类首帧优化，所以 Baseline Profile 知识点只在 Android 侧成立。另外 Flutter 的语义合并用 MergeSemantics widget，粒度更显式；Compose 的 clickable / Card 默认合并，开箱即用但需要理解默认行为。
+本质区别：Baseline Profile 是 Android 特有的优化，Flutter 没有直接等价物。Flutter 的语义合并用 MergeSemantics widget；Compose 的 clickable/toggleable 和部分交互组件会合并后代，但普通容器不会自动获得相同行为。
 
 ## 7. 常见错误
 
-1. 图片没有描述或装饰图被读屏朗读：忘了 contentDescription，或装饰图只传 null 没清子树。有意义的图补描述，装饰图用 clearAndSetSemantics。
+1. 图片语义使用过度或不足：有意义的图片缺少描述；纯装饰 Image 却添加重复描述；或者为了隐藏一个图片清掉整个父子树。按“表达含义、仅隐藏、整体重写”分别选 API。
 2. 触控目标小于 48dp：自定义手势区域做小，读屏用户与手指粗的用户都点不到。保证可交互区域 ≥48dp。
 3. 用 px 写死字号或全局改 Density：破坏系统字体缩放，视障用户无法放大文字。用 sp 语义，尊重系统设置。
-4. 发布版没装 Baseline Profile：写了规则却忘了加 profileinstaller 依赖或配置，规则根本没生效。
+4. 手工猜规则或只看生成文件：Profile 应由真实关键用户路径生成，并使用 Macrobenchmark 验证实际收益。
 5. 混淆后反射类崩溃：R8 删掉了反射引用的类/方法。在 proguard-rules.pro 里加 keep 规则。
 6. shrinkResources 误删资源：代码里动态引用（反射取资源 ID）被当作未使用。需要 keep 规则或 tools:keep 保留。
 
 ## 8. 本章检查题
 
-1. 纯装饰图标为什么用 clearAndSetSemantics 而不是只传 contentDescription = null？
-2. Baseline Profile 优化的是哪个阶段？如何验证收益？
+1. contentDescription = null、hideFromAccessibility 和 clearAndSetSemantics 分别适合什么场景？
+2. Baseline Profile 优化什么？当前推荐如何生成和验证？
 3. R8 与资源缩减各有什么注意点？
 4. mergeDescendants 的默认行为是怎样的？
 
 答案：
 
-1. contentDescription = null 只让该节点自身不朗读，子树语义仍在；装饰元素常包裹子元素，clearAndSetSemantics 会把整棵子树语义清空，彻底消除读屏噪音。
-2. 优化冷启动与首帧：ART 通过预编译清单跳过 JIT 解释阶段。用 Macrobenchmark 在真机上对比开启前后的启动时间与首帧耗时。
+1. 纯装饰 Image 使用 contentDescription = null；仅对无障碍隐藏但保留给测试等消费者时使用 hideFromAccessibility；需要清除或覆盖自身及后代的全部原语义时才使用 clearAndSetSemantics。
+2. 它帮助 ART 提前优化启动和其他关键用户路径中的热点代码。使用 Generator 模块和 BaselineProfileRule 自动生成，再在固定物理设备上用 Macrobenchmark 和明确的 CompilationMode 对比。
 3. R8：反射、序列化、native、注解等动态引用的类/方法需 keep 规则，否则运行期崩溃；资源缩减：只删确定未引用的资源，代码中动态引用（反射获取资源 ID）需 tools:keep 保留。
-4. 语义默认不合并，但 clickable、Card 等交互组件默认开启合并，把子节点语义并入父节点，读屏时整体朗读；需要显式定制时用 semantics(mergeDescendants = true) { ... }。
+4. 语义默认不合并；clickable、toggleable、Button 和部分交互组件会合并后代。普通不可点击容器不应假定自动合并；自定义逻辑组可以显式设置 mergeDescendants。
 
 ## 9. 本章总结
 
-发布质量 = 无障碍 + 性能 + 构建检查三件事：语义让读屏用户可用，Baseline Profile 让冷启动更快，R8 / 资源缩减 / AAB 让包更小更稳。三者遵循同一原则——可测量、可回归、上线前逐项验证。做完这三件事，应用才真正达到"可发布"标准。
+发布质量 = 无障碍 + 可测性能 + 可复现构建检查。语义让辅助技术用户真正可用；由关键用户路径生成并经 Macrobenchmark 验证的 Baseline Profile 改善真实体验；R8、资源缩减和 AAB 则需要发布前回归。任何“优化已生效”的结论都必须有工具输出或基准数据支持。
+
+官方参考：
+
+- [Compose semantics](https://developer.android.com/develop/ui/compose/accessibility/semantics)
+- [Accessibility API defaults](https://developer.android.com/develop/ui/compose/accessibility/api-defaults)
+- [Create Baseline Profiles](https://developer.android.com/topic/performance/baselineprofiles/create-baselineprofile)

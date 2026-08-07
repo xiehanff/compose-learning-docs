@@ -85,7 +85,7 @@ fun GradientPanel() {
 
 3. **进度环为什么要两层**。底环固定画 360 度灰色，进度弧按 `progress` 扫过对应角度，两者叠在一起才有"进度"语义。底环用 `drawBehind`（永远在内容下），进度弧用 `drawWithContent` 且先 `drawContent()`，这样弧线盖在文字上，视觉焦点正确。`startAngle = -90f` 把起点从三点钟转到十二点钟，这是进度环的常规起点。
 
-4. **`drawWithCache` 解决"每帧重建"问题**。绘制 lambda 每帧都会执行，如果里面 `Path(...)`、`Brush.linearGradient(...)`、`Shader` 每次新建，就是每帧分配对象、触发 GC 抖动。`drawWithCache` 的 lambda 返回一个 `CacheDrawScope`：它只在**首次绘制或尺寸等输入变化时**执行一次，之后的帧直接复用缓存结果。上例里渐变 `Brush` 的创建从每帧一次降为"尺寸变化时才一次"。记住：昂贵绘制资源（Path、Shader、渐变 Brush）放 `drawWithCache`，高频简单绘制放普通 draw 即可。
+4. **`drawWithCache` 用于缓存绘制对象**。普通绘制 lambda 可能频繁执行，如果每次都创建 `Path`、`Brush` 或 `Shader`，就会增加分配。`drawWithCache` 会在绘制区域尺寸变化，或其构建块读取的 State 发生变化时重新执行；其他绘制帧复用已创建对象。上例没有读取动画 State，因此渐变 Brush 通常只在尺寸等绘制环境变化时重建。只有确实创建了值得缓存的对象时才使用它，简单绘制使用普通 draw 更直接。
 
 5. **`drawContent()` 是内容本身的分界点**。在 `drawWithContent` 里不调用它，控件的实际内容（子组件、文字、图片）就永远不会被绘制——界面会"消失"。这在做遮罩、蒙层时是特性，但新手常常忘记调用导致内容莫名空白。记住：除非你明确要隐藏内容，否则 `drawWithContent` 里第一件事就是 `drawContent()`。
 
@@ -95,7 +95,7 @@ fun GradientPanel() {
 2. 绘制阶段：系统按链顺序触发绘制。`drawBehind` 先执行，画灰色 360 度底环。
 3. `drawWithContent` 执行：先调 `drawContent()` 绘制内部 `Text`，再按 `sweepAngle = 216f` 画渐变进度弧。
 4. `progress` 从 0.6f 变为 0.75f 时（比如网络加载推进），进度弧重绘，底环与文字不变的部分由 Compose 的绘制缓存优化。
-5. `GradientPanel` 的 `drawWithCache` 在首次绘制或尺寸变化时创建 `verticalGradient`，之后每帧直接复用 `onDrawBehind` 的结果绘制矩形，不重复创建 Brush。
+5. `GradientPanel` 的构建块没有读取可变 State，因此首次绘制或尺寸等绘制环境变化时创建 `verticalGradient`，其他帧复用 Brush；如果构建块读取的 State 变化，缓存也会失效并重建。
 
 ## 6. Flutter / Dart 3 对照
 
@@ -140,7 +140,7 @@ Stack(
 答案：
 
 1. `drawBehind` 在内容之前绘制，永远垫底；`drawWithContent` 让你自行决定——先 `drawContent()` 再画是叠在内容之上，先画再 `drawContent()` 是垫在内容之下。
-2. 缓存的是昂贵绘制资源的构建结果，如 `Path`、`Shader`、渐变 `Brush`。它在首次绘制或尺寸等输入变化时重新执行，之后的帧直接复用。
+2. 缓存的是构建块创建的绘制对象，如 `Path`、`Shader`、渐变 `Brush`。首次绘制、尺寸/绘制环境变化，或构建块读取的 State 变化时会重新执行。
 3. 控件的内容永远不会被绘制，界面呈现空白。除非刻意做遮罩，否则应先调用 `drawContent()`。
 4. `Canvas` 会新增一个节点并参与布局，绘制 modifier 直接在当前节点的绘制层按时机插画，不改变布局、不产生额外节点，成本更低、语义更清晰。
 

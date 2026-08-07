@@ -14,7 +14,7 @@
 进阶篇不再局限于 compose_demo 项目，本章使用通用 Compose API。
 
 - `com.google.dagger.hilt.android`：@HiltAndroidApp、@AndroidEntryPoint
-- `androidx.hilt:hilt-navigation-compose`：viewModel() 自动使用 Hilt 工厂
+- `androidx.hilt:hilt-navigation-compose`：在 Navigation Compose 目的地中使用 `hiltViewModel()`
 - `javax.inject`：@Inject、@Singleton
 - `dagger.hilt`：@Module、@InstallIn、@HiltViewModel
 
@@ -75,9 +75,9 @@ class MainViewModel @Inject constructor(
     }
 }
 
-// HomeScreen.kt —— Compose 里直接 viewModel()，Hilt 自动提供工厂
+// HomeScreen.kt —— Navigation Compose 目的地中使用 hiltViewModel()
 @Composable
-fun HomeScreen(viewModel: MainViewModel = viewModel()) {
+fun HomeScreen(viewModel: MainViewModel = hiltViewModel()) {
     val userName by viewModel.userName.collectAsStateWithLifecycle()
     Text(userName ?: "加载中…")
 }
@@ -89,7 +89,7 @@ Hilt 是 Dagger 在 Android 上的封装。它在编译期扫描 @Module、@Inje
 
 入口三件套缺一不可：`@HiltAndroidApp` 标记 Application，生成全局组件；`@AndroidEntryPoint` 标记 Activity/Fragment，生成注入入口；`@Inject constructor` 声明「我要什么依赖」。漏掉任何一个，Hilt 都不知道从哪下手，运行时会直接崩溃。
 
-`@HiltViewModel` 与 `@Inject constructor` 是 ViewModel 注入的一对组合：前者标记「这个 ViewModel 由 Hilt 创建」，后者声明构造参数由 Hilt 提供，两者配合生成 ViewModelFactory。搭配 hilt-navigation-compose 的 viewModel()，Compose 里无需手写任何工厂代码，构造参数自动填好。
+`@HiltViewModel` 与 `@Inject constructor` 是 ViewModel 注入的一对组合：前者标记「这个 ViewModel 由 Hilt 创建」，后者声明构造参数由 Hilt 提供，两者配合生成 ViewModelFactory。在 Navigation Compose 目的地中搭配 `hiltViewModel()`，无需手写工厂代码，且 ViewModel 会按当前导航返回栈条目确定作用域。
 
 提供依赖有两种方式：`@Provides` 用于提供第三方类（Retrofit 本身）或接口实现（retrofit.create 出来的 UserApi），`@Binds` 用于把接口绑定到具体实现类。模块用 `@InstallIn` 声明挂在哪个组件下，SingletonComponent 对应 Application 级。
 
@@ -102,7 +102,7 @@ Hilt 是 Dagger 在 Android 上的封装。它在编译期扫描 @Module、@Inje
 1. 编译期：Hilt 注解处理器扫描各注解，生成组件与工厂代码，依赖图不完整直接编译报错
 2. 应用启动，DemoApplication 的 Hilt 组件初始化，按需创建 Retrofit（@Singleton 只建一次）
 3. MainActivity 启动，@AndroidEntryPoint 完成入口注入
-4. HomeScreen 首次组合，viewModel() 发现 Hilt 工厂，用 UserApi 构造 MainViewModel
+4. HomeScreen 首次组合，hiltViewModel() 使用 Hilt 工厂和当前导航作用域构造 MainViewModel
 5. init 里 viewModelScope 启动协程拉取用户数据，StateFlow 发射，UI 显示名字
 6. 旋转屏幕，Activity 重建但 ViewModel 存活，依赖仍是同一批单例
 
@@ -145,9 +145,9 @@ Riverpod 的 ProviderContainer 也承担类似职责（依赖 + 作用域 + 生�
 
 - 忘记 @AndroidEntryPoint → 运行时崩溃，报「has not been annotated with @AndroidEntryPoint」，深链接（deeplink）启动的 Activity 最容易踩
 - @HiltViewModel 与 @Inject constructor 缺一不可 → 缺一个 Hilt 就不知道如何创建 ViewModel
-- 在非 @AndroidEntryPoint 类（普通工具类、自定义 View）里调用 viewModel() → 运行时崩溃
+- 宿主没有正确接入 Hilt 却调用 hiltViewModel() → 无法取得 Hilt ViewModelFactory
 - 两个模块重复提供同一类型（比如两个 @Provides Retrofit）→ 编译期报错，注意 @InstallIn 作用域不同也会冲突
-- 忘加 kapt/ksp 插件或 hilt-android-gradle-plugin → 注解不生效，编译静默通过但运行崩溃
+- 忘加 KSP/KAPT 或 Hilt Gradle 插件 → 通常在生成代码或编译阶段报缺失类型/配置错误，应先检查具体失败任务
 
 ## 8. 本章检查题
 

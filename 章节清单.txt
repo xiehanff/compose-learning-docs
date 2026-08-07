@@ -1,4 +1,9 @@
 00_完整学习规划.md
+00A_零基础环境准备与第一次构建.md
+00B_Gradle构建系统从入门到理解.md
+00C_Gradle构建报错定位与自救.md
+00D_Kotlin基础与Compose必备语法.md
+00E_Android项目运行基础.md
 01_MainActivity与setContent.md
 02_Composable函数.md
 03_DemoTheme与MaterialTheme.md

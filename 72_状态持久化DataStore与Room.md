@@ -78,23 +78,28 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun noteDao(): NoteDao
 }
 
-class NoteViewModel(private val dao: NoteDao) : ViewModel() {
-    val notes: StateFlow<List<NoteEntity>> = dao.observeAll()
+class NoteRepository(private val dao: NoteDao) {
+    fun observeNotes(): Flow<List<NoteEntity>> = dao.observeAll()
+    suspend fun add(note: NoteEntity) = dao.insert(note)
+}
+
+class NoteViewModel(private val repository: NoteRepository) : ViewModel() {
+    val notes: StateFlow<List<NoteEntity>> = repository.observeNotes()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 }
 ```
 
 ## 4. 逐步解释
 
-1. 先划清四层边界：`remember` 只活在组合（composition）里，重组就可能丢；`rememberSaveable` 把值序列化进 Bundle（即 onSaveInstanceState），旋转屏幕、系统回收进程后能恢复，但 Bundle 只装小数据且类型受限；DataStore 落盘到文件，App 重启后依然在，适合设置类键值；Room 落盘到 SQLite，适合需要查询、排序、联动的结构化数据。记忆口诀：**组合内用 remember，进程内用 Saveable，跨启动用 DataStore，要查询就用 Room**。
+1. 先划清四层边界：`remember` 会跨重组保留，但关联的节点离开组合后就会丢；`rememberSaveable` 借助 Saved State 机制，在配置变化以及系统能够恢复状态的进程重建场景中恢复小数据；DataStore 落盘到文件，App 重启后依然在，适合设置类键值；Room 落盘到 SQLite，适合需要查询、排序、联动的结构化数据。记忆口诀：**留在组合用 remember，需要恢复用 Saveable，跨启动小配置用 DataStore，要查询就用 Room**。
 
 2. rememberSaveable 的介质与限制：它把数据放进 Bundle（底层是 Parcel）。Bundle 支持基本类型、String、Parcelable、Serializable 以及它们的数组 / List / Map。自定义 data class 既不是 Parcelable 也不保证可序列化，所以要用 Saver 告诉它「怎么拆、怎么拼」：`listSaver` 把对象拆成 List 再存，`restore` 时按顺序拼回。只写 `rememberSaveable { mutableStateOf(Draft(...)) }` 而不配 Saver，运行时直接抛异常——这是新人最常见的崩溃之一。
 
-3. DataStore 为什么是异步的：Preferences DataStore 内部用协程做文件读写，`data` 暴露的是 `Flow<Preferences>`，每次 `edit` 后所有订阅者都能收到新值。因为磁盘 IO 不能卡主线程，所以读取（collect）和写入（edit）都是 suspend 操作。在 Compose 里订阅只需 `collectAsState()`。设置项这种「低频、键值、要跨启动」的数据正合适。
+3. DataStore 为什么是异步的：Preferences DataStore 内部用协程做文件读写，`data` 暴露的是 `Flow<Preferences>`，每次 `edit` 后订阅者都能收到新值。因为磁盘 IO 不能卡主线程，写入使用 suspend API，读取通过 Flow 收集。在 Android Compose 中优先用 `collectAsStateWithLifecycle()` 进行生命周期感知收集。设置项这种「低频、键值、要跨启动」的数据正合适。
 
 4. Room 的 Flow 查询为什么好用：`@Query` 返回 Flow 时，Room 会在表数据变化后自动重新查询并发出新列表，UI 层无需手动刷新；查询本身由 Room 在自己的线程池执行。拿到 Flow 后在 ViewModel 里 `stateIn` 成 StateFlow，Compose 侧 `collectAsState()` 订阅，数据从数据库到 UI 一条龙全响应式。关键原则：数据库访问只存在于数据层（DAO / Repository），Composable 与 ViewModel 不直接触碰 Room 与 DataStore。
 
-5. 什么时候选哪个：草稿、输入框内容、滚动位置这类「临时但怕丢」的用 rememberSaveable；主题、语言、登录 token 这类「跨启动的小配置」用 DataStore；笔记、消息、缓存列表这类「多、要查、要排序」的用 Room。
+5. 什么时候选哪个：草稿、输入框内容、滚动位置这类「临时但怕丢」的小状态用 rememberSaveable；主题、语言等「跨启动的小配置」用 DataStore；笔记、消息、缓存列表这类「多、要查、要排序」的数据用 Room。登录 token 属于敏感凭证，不能因为体积小就直接归为普通设置；应根据威胁模型使用 Keystore 支持的加密方案，并避免在日志、备份和版本库中泄露。
 
 ## 5. 实际执行过程
 
@@ -150,7 +155,7 @@ final rows = await db.query('notes', orderBy: 'updatedAt DESC');
 答案：
 
 1. 介质是 Bundle（onSaveInstanceState），底层是 Parcel。限制：类型必须 Bundle 可存（基本类型 / String / Parcelable / Serializable 等），自定义类需要写 Saver；数据量小，超过约 1MB 会抛 TransactionTooLarge。
-2. 数据需要跨 App 启动存活、且是键值型小配置（主题、字号、token）时用 DataStore；rememberSaveable 只在进程内、配置变化场景兜底，不保证跨启动。
+2. 数据需要跨 App 启动存活、且是非敏感的键值型小配置（主题、字号）时用 DataStore；rememberSaveable 依赖 Saved State 恢复，不保证用户主动结束应用后仍可恢复。敏感凭证需要额外的安全设计。
 3. 表数据变化后 Room 自动重新查询并发出新列表，UI 订阅 Flow 即自动刷新，无需手动管理「改完数据 → 手动刷新列表」的流程，天然响应式且查询在后台线程执行。
 
 ## 9. 本章总结
