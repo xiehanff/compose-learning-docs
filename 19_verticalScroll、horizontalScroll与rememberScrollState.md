@@ -74,6 +74,12 @@ SingleChildScrollView(
 2. verticalScroll 是否让 Column 变成懒加载？
 3. 20 个固定设置项页面更适合 Column+verticalScroll 还是 LazyColumn？
 
+答案：
+
+1. 当前滚动值、最大值以及滚动进行状态，使重组后能继续保持位置。
+2. 不会。Column 中的所有子项仍会一次性组合和测量，只是通过滚动偏移查看不同区域。
+3. Column + verticalScroll。数量少、结构固定，不需要懒加载。
+
 ## 9. 本章总结
 
 verticalScroll/horizontalScroll 给普通布局增加滚动，但不会增加懒组合。ScrollState 保存位置；数据很多时应优先使用 Lazy 容器。

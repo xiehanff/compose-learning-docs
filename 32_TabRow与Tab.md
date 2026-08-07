@@ -80,6 +80,12 @@ DefaultTabController(
 2. 项目为什么需要 when？
 3. Flutter TabBarView 在 Compose 中对应什么？
 
+答案：
+
+1. TabRow 负责标签排列、选中指示器和分割线；HorizontalPager 负责可滑动的页面内容。
+2. 项目是简单 Demo，用 when 根据 selectedTab 选择内容分支，不需要引入滑动容器。
+3. HorizontalPager，并与 TabRow 的选中状态同步（pagerState.currentPage 与 Tab 点击双向对齐，选一个作为主要真相）。
+
 ## 9. 本章总结
 
 TabRow 只是标签栏。简单内容用 when，手势切页用 HorizontalPager，并统一管理选中状态。

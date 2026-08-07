@@ -81,6 +81,12 @@ Text(
 2. fontSize 16sp、lineHeight 24sp 各控制什么？
 3. 局部红色加粗文本该用 TextStyle 还是 SpanStyle？
 
+答案：
+
+1. 来自主题 bodyMedium 基础样式，再被全局 DemoThemeConfig 的 fontSize 和 lineHeight 覆盖，因此保留字体族等主题属性又统一调整了演示区字号。
+2. fontSize 控制字形大小；lineHeight 控制每行占用的垂直高度。
+3. SpanStyle。配合 buildAnnotatedString 的 withStyle 作用域，只给局部片段应用颜色和字重。
+
 ## 9. 本章总结
 
 Text 的最终外观由主题 style 与顶层覆盖参数共同决定。字号、行高、字重、溢出和富文本是相互独立的能力，应分别配置。

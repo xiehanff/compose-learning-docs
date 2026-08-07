@@ -83,6 +83,12 @@ final ok = await showDialog<bool>(
 2. 点遮罩时哪个回调执行？
 3. confirmButton 为什么是 Lambda？
 
+答案：
+
+1. AlertDialog 是普通 Composable，由外部状态控制：showDialog 设为 false 时它离开组合树即关闭。
+2. onDismissRequest（点击遮罩、返回键等关闭请求都会触发它）。
+3. 它是 Composable 槽位（@Composable () -> Unit），可以放 TextButton 或任意自定义内容，而不是固定按钮类型。
+
 ## 9. 本章总结
 
 AlertDialog 的存在由状态决定。确认、取消和外部关闭最终都应统一更新状态，并明确处理业务结果。

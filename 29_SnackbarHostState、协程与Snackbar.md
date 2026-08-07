@@ -72,6 +72,12 @@ ScaffoldMessenger.of(context).showSnackBar(
 2. showSnackbar 为什么是挂起函数？
 3. 组合离开时 rememberCoroutineScope 如何处理？
 
+答案：
+
+1. SnackbarHostState（管理消息队列与当前显示状态）+ SnackbarHost（负责绘制）+ Scaffold（提供位置）。
+2. 因为 showSnackbar 会挂起到提示消失或用户执行 action 后才返回，只能在协程中调用。
+3. 组合离开时该作用域自动取消，正在执行的协程随之结束，适合 UI 事件场景。
+
 ## 9. 本章总结
 
 Snackbar = HostState + SnackbarHost + 协程调用。三者分别负责状态、显示位置和异步顺序。

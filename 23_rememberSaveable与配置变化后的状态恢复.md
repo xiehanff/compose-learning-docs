@@ -71,6 +71,12 @@ class DemoState extends State<Demo> with RestorationMixin {
 2. 哪些类型适合直接 saveable？
 3. 登录令牌应只放 rememberSaveable 吗？
 
+答案：
+
+1. 不一定。普通 remember 能跨重组保留，但组合被销毁（旋转、Activity 重建、导航重建）后没有保证。
+2. Boolean、String、Int 等基础可保存类型；自定义类需要 Saver，并只保存恢复 UI 所需的最小字段。
+3. 不应。rememberSaveable 不是数据库，登录令牌、订单等长期业务数据应放在持久层或 ViewModel/SavedStateHandle。
+
 ## 9. 本章总结
 
 rememberSaveable 用于恢复轻量 UI 状态，不是永久持久化。项目当前没有直接使用它，本章解释的是现有 remember 的边界。

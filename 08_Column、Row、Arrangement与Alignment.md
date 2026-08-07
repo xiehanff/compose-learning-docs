@@ -78,6 +78,12 @@ Column(
 2. Row 中如何让三个子项间隔固定 8dp？
 3. 为什么 SpaceBetween 必须有剩余空间才有明显效果？
 
+答案：
+
+1. 垂直方向，因此主轴参数叫 verticalArrangement；交叉轴是水平方向。
+2. 使用 Arrangement.spacedBy(8.dp)（注意它只负责相邻子项间距，不等于容器外侧 padding）。
+3. SpaceBetween 把剩余空间分配到子项之间；没有剩余空间时无处可分配，效果就不明显。
+
 ## 9. 本章总结
 
 先确定容器的主轴，再选择 Arrangement；交叉轴使用 Alignment。Column 垂直排列，Row 水平排列，这是后续 weight、Spacer 和滚动布局的基础。

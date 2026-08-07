@@ -74,6 +74,12 @@ MediaQuery(
 2. Provider 会影响父节点吗？
 3. 哪些信息适合 CompositionLocal？
 
+答案：
+
+1. 读取时沿组合树向上找最近的 Provider，找到即用它提供的值。
+2. 不会。Provider 只影响它内部的子树，父节点和兄弟子树不受影响，离开范围后恢复外层值。
+3. 主题、密度、语言等需要跨大量层级传递的环境信息；不适合替代所有明确的业务参数。
+
 ## 9. 本章总结
 
 CompositionLocalProvider 只覆盖组合子树，读取遵循最近 Provider 原则。

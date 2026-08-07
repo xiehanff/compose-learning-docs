@@ -77,6 +77,12 @@ ListView.builder(
 2. itemsIndexed 相比 items 多提供了什么？
 3. LazyColumn 为什么仍需要数据分页逻辑由业务层处理？
 
+答案：
+
+1. item 注册单个条目；items 为集合中每个元素注册条目。
+2. 额外提供 index 下标。
+3. LazyColumn 只负责懒组合和懒布局（可见区域才工作），不负责网络请求与分页，数据获取仍由业务层完成。
+
 ## 9. 本章总结
 
 LazyColumn 用 DSL 描述条目，并根据滚动窗口懒组合。item 适合静态条目，items 适合集合，itemsIndexed 在确实需要位置时才使用。

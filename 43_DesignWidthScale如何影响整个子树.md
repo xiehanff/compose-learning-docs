@@ -73,6 +73,12 @@ ScreenScale(
 2. 旋转后哪个值变化？
 3. 为什么不从已覆盖 LocalDensity 反推屏宽？
 
+答案：
+
+1. NavHost 位于 DesignWidthScale 的子树内，后代测量时读取最近的 LocalDensity，所以导航、页面全部受适配影响。
+2. 屏幕宽 widthPixels 变化（旋转、分屏）时 scale 变化，整个子树的换算规则随之变化。
+3. LocalDensity 已被覆盖，用它反推会得到已缩放的值，导致嵌套适配时二次计算。
+
 ## 9. 本章总结
 
 DesignWidthScale 不是逐个修改组件，而是改变整个后代树解析 Dp 的共同环境。

@@ -82,6 +82,12 @@ Card(
 2. Surface 的 contentColor 有什么价值？
 3. Flutter Container 在 Compose 中通常由哪些能力组合？
 
+答案：
+
+1. Card(onClick) 自带 Material 卡片语义、正确的交互和涟漪反馈，以及 CardDefaults 默认样式；Box.clickable 只有点击行为，没有卡片语义和 Material 表面样式。
+2. contentColor 会向子树传播与表面背景形成对比的内容颜色，保证表面上的文字、图标可读性。
+3. Box + Modifier 链（size、padding、background、border、clip、align 等）。
+
 ## 9. 本章总结
 
 Box 解决基础布局，Surface 解决 Material 表面，Card 表达卡片语义。选择组件时先看语义和默认行为，而不是只看视觉是否都是“一个矩形”。

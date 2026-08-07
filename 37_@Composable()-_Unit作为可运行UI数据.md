@@ -75,6 +75,12 @@ final widget = info.buildExample();
 2. 为什么类型上要写 @Composable？
 3. 详情页为什么不需要 when？
 
+答案：
+
+1. `{ TextExample() }` 创建 Lambda 并保存、不立即执行；`TextExample()` 是立即调用，返回 Unit。
+2. 声明这个函数只能在可组合环境调用，并且可以生成 UI。
+3. 详情页统一调用 `info.composeExample()` 即可展示任意组件，不需要为每种组件写 when 分支。
+
 ## 9. 本章总结
 
 把 Composable Lambda 存为数据，实现了通用模板和具体 UI 的解耦。

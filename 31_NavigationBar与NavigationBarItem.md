@@ -76,6 +76,12 @@ NavigationBar(
 2. selected 状态应放在哪里？
 3. 使用 NavController 时为什么要避免重复压栈？
 
+答案：
+
+1. 不会。NavigationBar 只负责底栏容器与条目显示，页面切换由内容区逻辑或导航决定。
+2. selectedIndex 作为唯一真相放在父级状态中，每个条目根据它计算 selected。
+3. 重复压栈会让返回栈堆积相同页面，返回行为错乱；应使用 launchSingleTop、saveState/restoreState 等控制。
+
 ## 9. 本章总结
 
 底栏是导航 UI，不是完整导航栈。必须把选中状态与内容或 NavController 明确连接。

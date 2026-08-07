@@ -74,6 +74,12 @@ final class ComponentInfo {
 2. 为什么类不需要 @Composable？
 3. composeExample 的类型是什么？
 
+答案：
+
+1. 同时承担路由参数、列表 key 和查询定位三种作用。
+2. ComponentInfo 只是数据模型，本身不直接绘制 UI，不需要 @Composable。
+3. `@Composable () -> Unit`，保存稍后可执行的 UI 函数。
+
 ## 9. 本章总结
 
 ComponentInfo 是统一 Demo 描述模型，让首页和详情页读取同一份数据。

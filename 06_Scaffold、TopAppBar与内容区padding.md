@@ -75,6 +75,12 @@ Scaffold(
 2. topBar 的 `{ Text(...) }` 为什么不是立即返回一个 Text 对象？
 3. PaddingValues 和单个 Dp 有什么区别？
 
+答案：
+
+1. 第一条内容会绘制到 TopAppBar 后面被遮挡，因为列表没有避开顶部栏占用的区域。
+2. 它是 UI 构建参数（Composable 槽位），由 Scaffold 在合适的时机构建并放入槽位，而不是立即返回对象。
+3. PaddingValues 包含 start、top、end、bottom 四个方向的信息，单个 Dp 只有一个值。
+
 ## 9. 本章总结
 
 `Scaffold` 负责页面槽位和安全空间的协调；`TopAppBar` 是顶部栏内容；内容 Lambda 接收的 `PaddingValues` 必须由具体内容消费。

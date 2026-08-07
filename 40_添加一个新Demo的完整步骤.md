@@ -81,6 +81,12 @@ final all = [...existing, badgeDemo];
 2. 为什么首页不需要手写新按钮？
 3. 如何保证 id 唯一？
 
+答案：
+
+1. components 包新建文件（定义 ComponentInfo 与示例函数）+ 在 ComponentRegistry.all 中追加一条。
+2. 首页遍历 all 自动生成入口，无需手写新按钮；详情页也通过 id 查找后统一渲染。
+3. 使用稳定且业务上唯一的字符串，与现有 id 命名区分，避免与已有路由参数冲突。
+
 ## 9. 本章总结
 
 新增流程是“定义 ComponentInfo + 注册到 all”。其余首页、路由和详情由通用结构自动完成。

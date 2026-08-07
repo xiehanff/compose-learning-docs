@@ -70,6 +70,12 @@ final class ComponentRegistry {
 2. 为什么注册表适合单例？
 3. 哪些对象不应放入全局 object？
 
+答案：
+
+1. object 同时声明类型和进程内唯一实例，直接 `ComponentRegistry.all` 访问；class 需要先实例化。
+2. 注册表是全局共享、相对固定的 Demo 定义表，所有页面复用同一份数据，适合单例。
+3. Activity、View、临时页面状态和大量可变业务数据；需要动态替换、测试注入、远程更新时应改用接口加依赖注入。
+
 ## 9. 本章总结
 
 ComponentRegistry 是稳定代码目录，而不是通用全局状态中心。

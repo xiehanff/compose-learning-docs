@@ -78,6 +78,12 @@ void didUpdateWidget(covariant UserPage oldWidget) {
 2. LaunchedEffect 的 key 改变时发生什么？
 3. Snackbar 点击为什么适合 rememberCoroutineScope？
 
+答案：
+
+1. Theme.kt 要把 Compose 的 darkTheme 同步到组合树外部的 Android Window，SideEffect 保证只在组合成功提交后执行。
+2. 取消旧协程并按新 key 重新启动。
+3. showSnackbar 是挂起函数，而点击回调不是 suspend 环境；rememberCoroutineScope 提供与组合绑定的作用域，且组合离开时自动取消。
+
 ## 9. 本章总结
 
 UI 描述应可重复执行。提交后同步用 SideEffect，组合生命周期协程用 LaunchedEffect，明确用户事件可用 rememberCoroutineScope。

@@ -74,6 +74,12 @@ ElevatedButton(onPressed: onBack, child: const Text('返回首页'));
 2. 返回图标的触控区域由谁提供？
 3. 何时可将 contentDescription 设为 null？
 
+答案：
+
+1. Icon 只读取 ImageVector 并绘制，自身没有点击能力；IconButton 承载图标型操作并提供合适的点击范围。
+2. IconButton 自带的最小触控区域（Material 默认触控尺寸）。
+3. 图标是纯装饰，或父级按钮已经提供完整语义时，避免 TalkBack 重复朗读。
+
 ## 9. 本章总结
 
 优先使用语义正确的 Material 交互组件。Button/IconButton 处理交互，Icon 只绘制，二者职责不能混淆。

@@ -81,6 +81,12 @@ class DemoState extends State<Demo> {
 2. remember 保存的是值还是状态对象所在的组合位置？
 3. `by` 写法与 `.value` 写法有什么关系？
 
+答案：
+
+1. `MutableState<Boolean>`（项目中使用 mutableIntStateOf/mutableFloatStateOf 时是专用基础类型状态）。
+2. remember 保存的是状态对象本身，并把它关联到当前组合位置；保存的是对象而不是值。
+3. 完全等价。`by` 是 Kotlin 属性委托语法糖：读取变量等价于 `state.value`，赋值等价于修改 `state.value`。
+
 ## 9. 本章总结
 
 本地状态的基础组合是 `remember + mutableStateOf`。remember 负责跨重组保存，State 负责通知 UI，`by` 只是 Kotlin 语法糖。

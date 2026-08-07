@@ -74,6 +74,12 @@ ClipRRect(
 2. 为什么 `Modifier.weight()` 不能随处调用？
 3. 给 Text 设置 clickable 后，点击范围由哪些 Modifier 决定？
 
+答案：
+
+1. `.clip().background()` 先裁剪再画背景，背景被限制在裁剪形状内；`.background().clip()` 先画背景再裁剪，背景覆盖原始范围后被裁掉，两者视觉可能不同。
+2. 因为 weight 是 RowScope/ColumnScope 提供的作用域 Modifier，只能在对应容器的 content 中调用。
+3. 由链上影响尺寸的 Modifier（padding、size、fillMaxWidth 等）共同决定，clickable 自身不改变布局尺寸。
+
 ## 9. 本章总结
 
 Modifier 是按顺序执行的不可变能力链，只影响接收它的 UI 节点。尺寸、布局、绘制、裁剪和点击范围都可能受顺序影响。

@@ -75,6 +75,12 @@ final action = await showModalBottomSheet<String>(
 2. 何时需要 SheetState？
 3. 下滑关闭应更新哪个状态？
 
+答案：
+
+1. 都是「状态为 true 时加入组合并播放进入动画，关闭请求触发 onDismissRequest」。
+2. 需要程序化 show/hide、跳过半展开状态或等待动画完成时（SheetState 的方法是挂起函数，需要协程）。
+3. 控制显示的状态（如 showSheet），在下滑关闭回调中把它设为 false。
+
 ## 9. 本章总结
 
 基础 BottomSheet 模式是布尔状态 + onDismissRequest；高级动画控制再加入 SheetState 和协程。

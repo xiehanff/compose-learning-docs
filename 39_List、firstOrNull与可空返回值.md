@@ -78,6 +78,12 @@ return Text(info.description);
 2. Elvis 操作符何时使用右侧值？
 3. null 检查后为什么能直接访问 description？
 
+答案：
+
+1. first 找不到匹配项会抛异常；firstOrNull 返回 null，安全。
+2. 左侧表达式为 null 时（`info?.title ?: "默认"` 中 info 为 null 时取右侧默认值）。
+3. 显式 `if (info == null)` 提前返回后，Kotlin 智能转换（smart cast）把 info 视为非空，后续可直接访问其属性。
+
 ## 9. 本章总结
 
 用可空返回表达“可能找不到”，并把 null 当成正常 UI 分支处理。

@@ -89,6 +89,12 @@ ClipRRect(
 2. 圆角图片最关键的 Modifier 是哪一个？
 3. 为什么 border 与 background 通常应使用相同 shape？
 
+答案：
+
+1. background(shape) 按圆角形状绘制背景，但子内容不一定被裁剪；clip(shape) 把后续绘制内容限制在形状内。
+2. clip(RoundedCornerShape(...))。图片必须被裁剪才能真正去掉四角。
+3. 描边与背景沿同一形状绘制才能对齐，否则圆角边缘不吻合。
+
 ## 9. 本章总结
 
 Shape 只描述几何形状；background、clip、border 分别负责填充、裁剪和描边。Compose 的组合式设计要求明确每一步做什么以及按什么顺序执行。
