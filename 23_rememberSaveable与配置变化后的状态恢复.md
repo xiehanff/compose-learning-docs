@@ -15,19 +15,21 @@
 
 - `components/AlertDialogDemo.kt`
 - `components/DatePickerDemo.kt`
+- `components/StateDemo.kt`
 
-本项目当前没有直接调用 `rememberSaveable`，这里用于说明真实项目的状态恢复选择。
+StateDemo.kt 的第三小节用 `rememberSaveable` 与 `remember` 做对照（旋转屏幕后前者保留、后者重置），是本章的实践入口。
 
 ## 3. 项目源码片段
 
 ```kotlin
-// 项目当前写法
-var showDialog by remember { mutableStateOf(false) }
+// components/StateDemo.kt:135：只要跨重组保留，用 remember
+var plainCount by remember { mutableIntStateOf(0) }
 
-// 需要跨配置变化恢复时
-var selectedTab by rememberSaveable {
-    mutableIntStateOf(0)
-}
+// components/StateDemo.kt:136：需要跨配置变化恢复时改用 rememberSaveable
+var savedCount by rememberSaveable { mutableStateOf(0) }
+
+// components/AlertDialogDemo.kt:35：弹窗是否显示这类临时状态，项目里只用 remember 保存
+var showDialog by remember { mutableStateOf(false) }
 ```
 
 ## 4. 逐步解释
@@ -79,4 +81,4 @@ class DemoState extends State<Demo> with RestorationMixin {
 
 ## 9. 本章总结
 
-rememberSaveable 用于恢复轻量 UI 状态，不是永久持久化。项目当前没有直接使用它，本章解释的是现有 remember 的边界。
+rememberSaveable 用于恢复轻量 UI 状态，不是永久持久化。项目里 `components/StateDemo.kt` 已用 `rememberSaveable` 与 `remember` 做对照，可直接旋转屏幕观察两者差异。

@@ -13,6 +13,8 @@
 - `00_完整学习规划.md`：总规划。
 - `00A—00E`：零基础环境、Gradle、构建排错、Kotlin 与 Android 预备篇。
 - `01—45`：独立章节。
+- `08A`：FlowRow 流式布局（基础篇补充章节，接在第 8 章后）。
+- `26A`、`26B`：输入框与选择控件（基础篇补充章节，接在第 26 章后）。
 - `99_源码文件索引.md`：从源码文件反查章节。
 
 ## 开始之前：零基础预备篇
@@ -33,6 +35,7 @@
 - [第 6 章：Scaffold、TopAppBar 与内容区 padding](06_Scaffold、TopAppBar与内容区padding.md)
 - [第 7 章：Modifier 的本质、作用范围与调用顺序](07_Modifier的本质、作用范围与调用顺序.md)
 - [第 8 章：Column、Row、Arrangement 与 Alignment](08_Column、Row、Arrangement与Alignment.md)
+- [第 8A 章：FlowRow 与流式布局](08A_FlowRow与流式布局.md)
 - [第 9 章：Box、层叠布局与 Flutter Stack](09_Box、层叠布局与FlutterStack.md)
 - [第 10 章：Card、Surface 与容器组件的区别](10_Card、Surface与容器组件的区别.md)
 - [第 11 章：Text、TextStyle、FontWeight 与 lineHeight](11_Text、TextStyle、FontWeight与lineHeight.md)
@@ -51,6 +54,8 @@
 - [第 24 章：状态提升：状态放在哪里，事件回调传向哪里](24_状态提升：状态放在哪里，事件回调传向哪里.md)
 - [第 25 章：SideEffect、LaunchedEffect 与普通业务代码的边界](25_SideEffect、LaunchedEffect与普通业务代码的边界.md)
 - [第 26 章：Button、IconButton 与 Icon](26_Button、IconButton与Icon.md)
+- [第 26A 章：TextField、OutlinedTextField 与输入状态](26A_TextField、OutlinedTextField与输入状态.md)
+- [第 26B 章：Checkbox、Switch 与 Slider 选择控件](26B_Checkbox、Switch与Slider选择控件.md)
 - [第 27 章：AlertDialog](27_AlertDialog.md)
 - [第 28 章：ModalBottomSheet](28_ModalBottomSheet.md)
 - [第 29 章：SnackbarHostState、协程与 Snackbar](29_SnackbarHostState、协程与Snackbar.md)
