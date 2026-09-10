@@ -36,6 +36,7 @@ fun FlowLayout(
     val vGap = with(LocalDensity.current) { verticalGap.toPx() }
 
     Layout(content = content, modifier = modifier) { measurables, constraints ->
+        // constraints：父级给本布局划定的宽高范围（第 63 章详解）
         // 1. 逐个测量所有子项
         val placeables = measurables.map { it.measure(constraints) }
 
@@ -76,9 +77,9 @@ FlowLayout {
 
 ## 4. 逐步解释
 
-`Layout(content, modifier, measurePolicy)` 的核心是第三个参数 MeasurePolicy，以 lambda 形式给出：`{ measurables, constraints -> ... }`。`measurables` 是 content 里每个子项的测量入口（Measurable），`constraints` 是父级传下来的约束。整个 lambda 就是你的布局算法。
+`Layout(content, modifier, measurePolicy)` 的核心是第三个参数 MeasurePolicy，以 lambda 形式给出：`{ measurables, constraints -> ... }`。`measurables` 是 content 里每个子项的测量入口（Measurable）；`constraints`（约束）是**父级发给当前这个 Layout 自身**的尺寸范围——宽高各自的最小值与最大值（第 63 章详解）。它约束的是你，不是直接约束子项：子项收到什么约束，由你在下面调用 `measurable.measure(...)` 时自己决定。整个 lambda 就是你的布局算法。
 
-测量：对每个子项调用 `measurable.measure(constraints)`，返回 `Placeable`——它带 `width`/`height`，代表「子项在给定约束下最终要多大」。注意约束从父传到子，**子项必须在约束范围内选尺寸**，它无权反过来要求父级。
+测量：对每个子项调用 `measurable.measure(constraints)`，返回 `Placeable`——它带 `width`/`height`，代表「子项在给定约束下最终要多大」。这里的实参就是**你为这个子项挑的约束**：示例把父级给自己的约束原样传下去，所以子项能在整块可用区域里挑尺寸；想收紧或放宽（比如只给剩余宽度），传一个改过的约束副本即可（第 63 章详解）。注意约束从父传到子，**子项必须在收到的那份约束范围内选尺寸**，它无权反过来要求父级。
 
 放置：得到所有 Placeable 后，调用 `place(x, y)` 把每个子项放到自己坐标系里的具体位置。place 是坐标偏移，不改变尺寸。RTL 语言环境下可以用 `placeRelative`，它会按布局方向自动镜像水平坐标。
 

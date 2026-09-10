@@ -51,7 +51,8 @@ fun SearchScreen(viewModel: SearchViewModel) {
 ```kotlin
 @Composable
 fun ResultList(viewModel: SearchViewModel) {
-    // 生命周期感知：STARTED 及以上才收集，后台自动停止，省资源
+    // 生命周期感知：感知页面生命周期，在合适时机自动开始/停止收集（第 70 章详解）
+    // STARTED 及以上才收集，后台自动停止，省资源
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     when (val state = uiState) {
@@ -68,7 +69,7 @@ fun ResultList(viewModel: SearchViewModel) {
 
 防抖搜索是它的经典用法：每次按键都发射新值，`debounce(300)` 只在停止输入 300ms 后才放行最后一个值，`distinctUntilChanged()` 过滤掉连续相同的值（比如删掉再打回同一个字），最后 `collect` 触发搜索。整个流水线声明式地描述了「什么输入对应什么动作」，而不用手动管理定时器。
 
-`collectAsState` 把任意 Flow 转成 State：Flow 发射新值时更新 State，读取它的 UI 重组。`collectAsStateWithLifecycle` 来自 lifecycle-runtime-compose，感知生命周期——只有 Lifecycle 处于 STARTED 及以上才收集，退到后台自动停止收集、回前台恢复，省电省流量。**两者核心区别就是生命周期感知**：屏幕不在前台时，普通版本仍在收集，可能白白执行昂贵的 Flow 操作。
+`collectAsState` 把任意 Flow 转成 State：Flow 发射新值时更新 State，读取它的 UI 重组。`collectAsStateWithLifecycle` 来自 lifecycle-runtime-compose，是生命周期感知的：能感知页面生命周期，在合适时机自动开始/停止收集（第 70 章详解）——只有 Lifecycle 处于 STARTED 及以上才收集，退到后台自动停止收集、回前台恢复，省电省流量。**两者核心区别就是生命周期感知**：屏幕不在前台时，普通版本仍在收集，可能白白执行昂贵的 Flow 操作。
 
 线程方面：Flow 的 collect 默认在收集者所在线程执行。Compose 的收集发生在主线程（组合上下文），所以 `collect { }` 里若做网络、数据库等耗时操作，应在上游加 `flowOn(Dispatchers.IO)` 切换生产线程，让 UI 线程只做轻量收尾。记住：collect 回调里别做重活，重活放 flowOn 的上游。
 

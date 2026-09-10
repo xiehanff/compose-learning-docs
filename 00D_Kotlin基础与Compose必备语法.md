@@ -189,7 +189,7 @@ data class User(
 val updated = user.copy(name = "新名字")
 ```
 
-`object` 声明单例：
+`object` 声明单例（单例指整个程序里只会创建一个实例的对象；第 38 章会用 `object` 组织全局注册表）：
 
 ```kotlin
 object Routes {
@@ -267,7 +267,7 @@ var count by remember { mutableStateOf(0) }
 Text("$count")
 ```
 
-第二种使用 Kotlin 属性委托。读取 `count` 会委托给 State 的 `getValue`，赋值会委托给 `setValue`。
+第二种使用 Kotlin 属性委托。读取 `count` 会委托给 State 的 `getValue`，赋值会委托给 `setValue`（`getValue`/`setValue` 是 Compose 为 State 提供的读写约定，详见第 21 章）。
 
 `by` 不是 Compose 独有语法，Compose 只是为 State 提供了相应运算符。
 
@@ -283,7 +283,7 @@ val userResult: Result<User>
 val listResult: Result<List<User>>
 ```
 
-`T` 表示调用方决定的类型。后续会在 `StateFlow<UiState>`、`List<ComponentInfo>`、`Saver<T, Saveable>` 中频繁看到泛型。
+`T` 表示调用方决定的类型。后续会在 `StateFlow<UiState>`、`List<ComponentInfo>`、`Saver<T, Saveable>`（`Saver` 用于自定义状态的保存与恢复，第 23 章详解）中频繁看到泛型。
 
 ## 14. suspend 与协程的最小认识
 

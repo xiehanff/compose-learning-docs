@@ -35,7 +35,7 @@ physicalPx = dpValue * density
 
 设备最终绘制物理像素，Compose 布局通常使用 Dp。Density.density 是二者换算倍率：density=3 时，100.dp 约为 300px。
 
-项目将 density 设置为 `屏幕宽物理像素 / 750`。1080px 宽屏得到 1.44，750.dp 会换算成 1080px。项目扩展名叫 `.px`，返回类型其实仍是 Dp；只是新的 Density 让设计稿数字按屏宽解释。fontScale 单独表示用户系统字体倍率，不能简单忽略。
+项目将 density 设置为 `屏幕宽物理像素 / 750`。1080px 宽屏得到 1.44，750.dp 会换算成 1080px。项目扩展名叫 `.px`，返回类型其实仍是 Dp；只是新的 Density 让设计稿上的数字按屏宽解释（设计稿适配详见第 43 章）。fontScale 单独表示用户系统字体倍率，不能简单忽略。
 
 ## 5. 实际执行过程
 

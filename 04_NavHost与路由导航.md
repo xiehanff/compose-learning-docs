@@ -101,7 +101,7 @@ val navController = rememberNavController()
 val navController = NavController(...)
 ```
 
-因为 Composable 可能重组。如果每次执行 `DemoApp()` 都创建全新控制器，导航状态会被破坏。
+因为 Composable 可能重组（指状态变化后，Compose 重新执行「读取过该状态」的 Composable 函数，用新值重新生成这部分界面，第 22 章详解）。如果每次执行 `DemoApp()` 都创建全新控制器，导航状态会被破坏。
 
 `rememberNavController()` 会让控制器与当前 Composition 生命周期正确关联，并支持 Navigation Compose 所需的状态保存/恢复能力。
 
@@ -406,7 +406,7 @@ ComponentRegistry.findById(componentId)
 
 导航参数只携带 `id`，详情数据再从注册表查询。
 
-这样避免把整个 `ComponentInfo` 对象都塞进路由。
+这样避免把整个 `ComponentInfo`（项目的 Demo 条目数据类，第 36 章详解）对象都塞进路由。
 
 ---
 

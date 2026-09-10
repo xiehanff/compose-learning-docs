@@ -87,7 +87,7 @@ Compose 输入框的核心只有两个参数：`value` 决定当前显示什么�
 1. 首次组合：`remember` 创建三个空字符串状态，输入框显示 `label` 与 `placeholder`。
 2. 用户点击年龄框：`keyboardType = KeyboardType.Number` 让系统弹出数字键盘。
 3. 用户按键：系统把新文本交给 `onValueChange`，回调里执行 `filter { it.isDigit() }` 后写回 `age`。
-4. 状态变化触发重组，输入框以新的 `value` 重新渲染，非法字符根本不会出现在界面上。
+4. 状态变化触发重组，输入框以新的 `value` 重新生成界面，非法字符根本不会出现在界面上。
 5. 手机号每输入一位都会重新计算 `phoneValid` 与 `phoneError`：不合法时 `isError` 变红、`supportingText` 显示规则提示；合法时描边恢复正常、提示变成计数。
 6. 下方 `Text` 直接把三个状态插值进模板串，实时回显证明「输入 → 状态 → 界面」这条单向数据流。
 

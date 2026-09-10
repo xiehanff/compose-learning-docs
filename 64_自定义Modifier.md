@@ -8,7 +8,7 @@
 
 - 用 `Modifier.layout` 修改测量与放置
 - 用 `Modifier.drawBehind` / `drawWithContent` 在链中绘制
-- 用 `Modifier.pointerInput` 接收手势
+- 用 `Modifier.pointerInput` 接收手势（手势检测的完整规则在第 65 章）
 - 理解 modifier 链顺序的意义，用 `composed` 封装有状态 modifier
 
 ## 2. 项目中的位置
@@ -19,7 +19,7 @@
 - `androidx.compose.ui.draw.drawBehind` / `drawWithContent`
 - `androidx.compose.ui.input.pointer.pointerInput`
 - `androidx.compose.ui.composed`
-- `androidx.compose.foundation.gestures.detectTapGestures`
+- `androidx.compose.foundation.gestures.detectTapGestures`（点按识别器，第 65 章详解）
 
 ## 3. 项目源码片段
 
@@ -87,7 +87,7 @@ fun Modifier.pressHighlight(): Modifier = composed {
 
 `Modifier.drawBehind` 在绘制阶段、内容**之后**（底层）绘制；`Modifier.drawWithContent` 允许在 drawContent() 前后分别绘制，可以做渐变遮罩、边框叠加等。绘制 modifier 里拿到的 `size` 是布局后的尺寸，绘制逻辑与布局无关。
 
-`Modifier.pointerInput(keys) { ... }` 为链上节点启动一个手势协程，接收指针事件（详见第 65 章）。关键点是 `keys`：协程块内捕获的外部值变化时，只有 keys 变化协程才会重启并拿到新值；keys 不变，块内闭包永远是组合那一刻的旧值。
+`Modifier.pointerInput(keys) { ... }` 为链上节点启动一个手势协程，用来接住这个节点上的原始指针事件；块里通常搭配一个"手势识别器"把原始事件翻译成有意义的回调，本章用的是 `detectTapGestures`——它把"按下、抬起"的序列识别成 `onTap`、`onPress`、长按等回调（两者都是第 65 章的内容，本章只需会照着写）。关键点是 `keys`：协程块内捕获的外部值变化时，只有 keys 变化协程才会重启并拿到新值；keys 不变，块内闭包永远是组合那一刻的旧值。
 
 `Modifier.composed { ... }` 让 modifier 工厂函数获得组合上下文——里面可以调用 `remember`、`LocalDensity.current` 等。普通扩展函数不能调用 remember（没有组合作用域），所以**有状态的 modifier 必须用 composed 封装**。注意 composed 本身有开销（每次组合都执行 lambda），简单无状态 modifier 用普通函数即可。
 

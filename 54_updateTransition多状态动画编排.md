@@ -16,7 +16,7 @@
 涉及的 androidx 包与官方 API：
 
 - `androidx.compose.animation`：`updateTransition`、`Transition`
-- `androidx.compose.animation.core`：`tween`、`spring`、`AnimationSpec`
+- `androidx.compose.animation.core`：`tween`、`spring`（物理回弹规格）、`AnimationSpec`（动画规格，两者都是第 55 章的主角，本章只用到它们的默认值）
 - `androidx.compose.runtime`：`State`、`getValue`/`setValue`、`remember`
 - `androidx.compose.ui.graphics`：`graphicsLayer`、`Color`
 - `androidx.compose.material.icons`：`Icons`、`Icons.Filled.Pause`、`Icons.Filled.PlayArrow`
@@ -40,7 +40,7 @@ fun PlayPauseButton(state: PlayState, onToggle: () -> Unit) {
         if (s == PlayState.Playing) Color(0xFFFF5252) else Color(0xFF2196F3)
     }
     val iconSize by transition.animateDp(
-        transitionSpec = { tween(durationMillis = 400) },
+        transitionSpec = { tween(durationMillis = 400) },  // 动画规格：这里指定 400ms 定时过渡（第 55 章详解）
         label = "iconSize"
     ) { s ->
         if (s == PlayState.Playing) 56.dp else 40.dp
@@ -94,7 +94,7 @@ S 通常是枚举或密封类（状态机），也可以是任意类型。关键
 每个子动画有两个关键部分：
 
 1. **目标值函数**：`{ s -> ... }` 接收当前状态，返回该状态下属性的目标值；
-2. **可选动画规格**：`transitionSpec = { tween(durationMillis = 400) }`，不传则默认 `spring()`。
+2. **可选动画规格**：`transitionSpec = { tween(durationMillis = 400) }`，不传则默认 `spring()`。这里的"动画规格"（`AnimationSpec`）指的是描述动画"怎么动"的参数集合：时长、缓动曲线、是否回弹；`tween` 是固定时长的规格，`spring` 是物理回弹的规格。规格的完整家族（`spring`、`keyframes`、`repeatable` 等）第 55 章详解，本章只需会给子动画指定一个规格。
 
 ```kotlin
 val alpha by transition.animateFloat(
@@ -184,7 +184,7 @@ final color = ColorTween(begin: Colors.blue, end: Colors.red).animate(controller
 
 - 都是"声明属性目标值，框架负责过渡"；
 - 都能让多个属性随同一个状态/进度变化；
-- 都有时长与曲线控制（`duration` + `Curves` ≈ `tween` + `easing`）。
+- 都有时长与曲线控制（`duration` + `Curves` ≈ `tween` 的 `durationMillis` + `easing` 缓动曲线；缓动曲线控制动画速度随时间变化，第 55 章详解）。
 
 本质区别：
 

@@ -6,7 +6,7 @@
 
 - 用 `Modifier.drawBehind` 在内容下方绘制背景、底环；
 - 用 `Modifier.drawWithContent` 控制"先画内容还是先画装饰"，实现进度环上层弧线；
-- 用 `Modifier.drawWithCache` 缓存 Path、Shader、Brush 等昂贵绘制资源，避免每帧重建；
+- 用 `Modifier.drawWithCache` 缓存 `Path`（矢量路径，第 59 章）、`Shader` / `Brush`（决定用什么填充，第 60 章）等昂贵绘制资源，避免每帧重建；
 - 理解绘制顺序 = modifier 链顺序 + draw 时机，并解释 `drawContent()` 缺失的后果。
 
 ## 2. 项目中的位置
@@ -15,8 +15,15 @@
 
 - `androidx.compose.ui.draw`：`drawBehind`、`drawWithContent`、`drawWithCache`、`drawContent`
 - `androidx.compose.ui.graphics.drawscope`：`DrawScope`、`drawArc`
-- `androidx.compose.ui.graphics`：`Brush`、`linearGradient`、`Path`
+- `androidx.compose.ui.graphics`：`Brush`、`linearGradient`（第 60 章详解）、`Path`（第 59 章详解）
 - `androidx.compose.foundation`：`Canvas`（对照使用）
+
+> 阅读前只需知道两个词，本章不展开它们的具体用法：
+>
+> - `Path`（第 59 章详解）：由线段与曲线拼成的矢量路径，用来描述任意形状；
+> - `Brush` / `Shader`（第 60 章详解）：决定"用什么去填充"——纯色还是渐变。
+>
+> 本章把它们当作「创建一次、多帧复用」的昂贵绘制对象来举例；缓存本身与对象是谁无关，后面会讲清楚。
 
 ## 3. 项目源码片段
 
@@ -42,7 +49,7 @@ fun CircularProgressRing(progress: Float) {  // progress: 0f..1f
             .drawWithContent {
                 drawContent()   // 先画 Box 的内容（比如文字）
                 drawArc(
-                    brush = Brush.sweepGradient(listOf(Color(0xFF2196F3), Color(0xFF9C27B0))),
+                    color = Color(0xFF2196F3),
                     startAngle = -90f,               // 从 12 点方向开始
                     sweepAngle = 360f * progress,    // 按进度扫过
                     useCenter = false,
@@ -57,7 +64,7 @@ fun CircularProgressRing(progress: Float) {  // progress: 0f..1f
     }
 }
 
-// 渐变背景：Brush 的创建有开销，用 drawWithCache 缓存
+// 渐变背景：Brush（填充工具，第 60 章详解）的创建有开销，用 drawWithCache 缓存
 @Composable
 fun GradientPanel() {
     Box(
@@ -85,7 +92,7 @@ fun GradientPanel() {
 
 3. **进度环为什么要两层**。底环固定画 360 度灰色，进度弧按 `progress` 扫过对应角度，两者叠在一起才有"进度"语义。底环用 `drawBehind`（永远在内容下），进度弧用 `drawWithContent` 且先 `drawContent()`，这样弧线盖在文字上，视觉焦点正确。`startAngle = -90f` 把起点从三点钟转到十二点钟，这是进度环的常规起点。
 
-4. **`drawWithCache` 用于缓存绘制对象**。普通绘制 lambda 可能频繁执行，如果每次都创建 `Path`、`Brush` 或 `Shader`，就会增加分配。`drawWithCache` 会在绘制区域尺寸变化，或其构建块读取的 State 发生变化时重新执行；其他绘制帧复用已创建对象。上例没有读取动画 State，因此渐变 Brush 通常只在尺寸等绘制环境变化时重建。只有确实创建了值得缓存的对象时才使用它，简单绘制使用普通 draw 更直接。
+4. **`drawWithCache` 用于缓存绘制对象**。普通绘制 lambda 可能频繁执行，如果每次都创建 `Path`、`Brush` 或 `Shader`，就会增加分配。`drawWithCache` 会在绘制区域尺寸变化，或其构建块读取的 State 发生变化时重新执行；其他绘制帧复用已创建对象。上例没有读取动画 State，因此渐变 Brush 通常只在尺寸等绘制环境变化时重建。这里要抓住的是缓存的**通用条件**，而不是这几个具体对象：只要某个对象"创建它有一定成本、而且每次画都需要同一个"，就值得放进构建块里创建一次；反过来，只创建一个 `Color` 这类字面量级别的值就没必要用 `drawWithCache`，普通 draw 更直接。（`Path` 与 `Brush`、`Shader` 的具体能力见第 59、60 章，届时回头看这段会更清楚。）
 
 5. **`drawContent()` 是内容本身的分界点**。在 `drawWithContent` 里不调用它，控件的实际内容（子组件、文字、图片）就永远不会被绘制——界面会"消失"。这在做遮罩、蒙层时是特性，但新手常常忘记调用导致内容莫名空白。记住：除非你明确要隐藏内容，否则 `drawWithContent` 里第一件事就是 `drawContent()`。
 
@@ -93,7 +100,7 @@ fun GradientPanel() {
 
 1. 组合阶段：`CircularProgressRing(0.6f)` 进入组合，modifier 链完成测量，尺寸定为 120dp。
 2. 绘制阶段：系统按链顺序触发绘制。`drawBehind` 先执行，画灰色 360 度底环。
-3. `drawWithContent` 执行：先调 `drawContent()` 绘制内部 `Text`，再按 `sweepAngle = 216f` 画渐变进度弧。
+3. `drawWithContent` 执行：先调 `drawContent()` 绘制内部 `Text`，再按 `sweepAngle = 216f` 画进度弧。
 4. `progress` 从 0.6f 变为 0.75f 时（比如网络加载推进），进度弧重绘，底环与文字不变的部分由 Compose 的绘制缓存优化。
 5. `GradientPanel` 的构建块没有读取可变 State，因此首次绘制或尺寸等绘制环境变化时创建 `verticalGradient`，其他帧复用 Brush；如果构建块读取的 State 变化，缓存也会失效并重建。
 
@@ -125,7 +132,7 @@ Stack(
 ## 7. 常见错误
 
 1. **用 `Modifier.background` 做需要动态变化的绘制**。`background` 适合静态颜色，虽然能传 `Brush`，但它在动画场景下每次都要重建画刷，且不能参与进度计算。动态背景用 `drawBehind` + `Brush` 更合适。
-2. **重计算放普通 draw 里不缓存**。`Path`、渐变 `Brush` 每帧新建，短时间大量分配对象引发卡顿。应放入 `drawWithCache`。
+2. **重计算放普通 draw 里不缓存**。`Path`、渐变 `Brush`（均见第 59、60 章）每帧新建，短时间大量分配对象引发卡顿。应放入 `drawWithCache`。
 3. **忘记 `drawContent()` 导致内容消失**。`drawWithContent` 里只画了装饰没调 `drawContent()`，子组件全部空白。排查这类 bug 先检查有没有调用它。
 4. **层级理解反了**。以为 `drawBehind` 写在链前面就画在最上层。记住：链前面的 modifier 绘制在**下层**。
 5. **把进度弧和底环都画在 `drawBehind` 里**。底环垫底没问题，进度弧也应垫底时无所谓，但需要弧线盖住文字时就只能靠 `drawWithContent` 的 `drawContent()` 时机来控制。

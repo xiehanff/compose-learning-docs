@@ -9,9 +9,9 @@
 - 用 `FlowRow` 让子项一行放不下时自动折行
 - 区分 `horizontalArrangement` 与 `verticalArrangement` 各自控制的间距
 - 用 `maxItemsInEachRow` 强制每行最多放几个子项
-- 知道 `maxLines` / `overflow` 用于限制行数并处理超出的内容（裁剪或显示展开指示器）
+- 知道 `maxLines` / `overflow` 用于限制行数并处理超出的内容（裁剪或显示展开指示器）。注意这是 `FlowRow` 自己的参数，管的是「折行之后的行数」；第 11 章 `Text` 也有同名的 `maxLines` / `overflow`，那两个管的是「一段文字内部的行数与省略方式」，两者不是一回事
 - 解释为什么必须写 `@OptIn(ExperimentalLayoutApi::class)`
-- 用 `mutableStateListOf` 动态增删子项并触发重新换行
+- 用 `mutableStateListOf`（可观察列表，第 21 章详解）动态增删子项并触发重新换行
 
 ## 2. 项目中的位置
 
@@ -25,7 +25,7 @@
 @OptIn(ExperimentalLayoutApi::class) // FlowRow 仍标注为实验 API，必须显式 opt-in
 @Composable
 private fun FlowRowExample() {
-    // 可观察列表：增删元素会自动触发重组
+    // 可观察列表：增删元素会自动触发重组（重组见第 22 章）
     val tags = remember {
         mutableStateListOf("Compose", "Flutter", "Kotlin", "Dart", "Android", "iOS", "声明式 UI")
     }
@@ -69,15 +69,15 @@ Box(
 
 ## 4. 逐步解释
 
-`FlowRow` 是「流式布局」：子项沿水平方向依次排列，一行放不下就自动折到下一行。适合子项数量不定、宽度不一的场景（标签流、筛选按钮组、搜索历史），这正是 `Row` 做不到的——`Row` 永远只有一行、不会自动换行；子项宽度超出时默认表现为溢出（被裁掉或在边界外绘制），想压缩必须自己给子项加 `Modifier.weight`，想滚动则要套一层 `horizontalScroll`。
+`FlowRow` 是「流式布局」：子项沿水平方向依次排列，一行放不下就自动折到下一行。适合子项数量不定、宽度不一的场景（标签流、筛选按钮组、搜索历史），这正是 `Row` 做不到的——`Row` 永远只有一行、不会自动换行；子项宽度超出时默认表现为溢出（被裁掉或在边界外绘制），想压缩必须自己给子项加 `Modifier.weight`（让同一行或同一列的子项按比例分掉剩余空间，第 14 章详解），想滚动则要套一层 `horizontalScroll`（横向滚动，第 19 章详解）。
 
 它的两个 Arrangement 参数方向要分清楚：`horizontalArrangement = Arrangement.spacedBy(8.px)` 控制同一行内相邻子项的间距；`verticalArrangement = Arrangement.spacedBy(8.px)` 控制换行之后每一行之间的间距。这和 `Row`（只有 `horizontalArrangement`）不同，务必别混。
 
-`maxItemsInEachRow = 3` 是 FlowRow 独有的约束：每行最多放 3 个子项，第 4 个即使宽度还有富余也会被挤到下一行。此外还有 `maxLines`（最多渲染几行）与 `overflow`（超出部分怎么处理），两者作用不同：`maxLines` 只限制行数，本身不会产生折叠按钮或动画；`FlowRowOverflow.Clip` 会把超出的子项裁掉，`FlowRowOverflow.expandIndicator { ... }` / `expandOrCollapseIndicator(...)` 才会额外渲染「展开 / 收起」指示器，指示器里可以通过 `FlowRowOverflowScope` 的 `totalItemCount` / `shownItemCount` 得知一共多少项、当前显示了多少项，再配合自己的状态决定展开与否。也就是说，展开 / 折叠要靠显式使用这些 indicator 或自己用状态控制渲染哪些子项，单写 `maxLines` 做不到。另外要注意 API 现状：项目所用的 Compose BOM 2026.06.00（foundation-layout 1.11.3）里，`FlowRow` 的 `overflow` 参数以及 `FlowRowOverflow.Clip` / `Visible` 已被标为 deprecated（官方说明是 overflow 不再维护），所以更稳妥的做法是只用 `maxLines` 限制行数，再用自己的状态决定渲染哪些子项。
+`maxItemsInEachRow = 3` 是 FlowRow 独有的约束：每行最多放 3 个子项，第 4 个即使宽度还有富余也会被挤到下一行。此外还有 `maxLines`（最多渲染几行）与 `overflow`（超出部分怎么处理），两者作用不同。先注意：这两个是 `FlowRow` 自己的参数，限制的是「折行之后的行数」；第 11 章 `Text` 也有同名的 `maxLines` / `overflow`，那两个限制的是「一段文字内部的行数与省略方式」，名字相同但作用对象完全不同，不要混在一起记。`maxLines` 只限制行数，本身不会产生折叠按钮或动画；`FlowRowOverflow.Clip` 会把超出的子项裁掉，`FlowRowOverflow.expandIndicator { ... }` / `expandOrCollapseIndicator(...)` 才会额外渲染「展开 / 收起」指示器，指示器里可以通过 `FlowRowOverflowScope` 的 `totalItemCount` / `shownItemCount` 得知一共多少项、当前显示了多少项，再配合自己的状态决定展开与否。也就是说，展开 / 折叠要靠显式使用这些 indicator 或自己用状态控制渲染哪些子项，单写 `maxLines` 做不到。另外要注意 API 现状：项目所用的 Compose BOM 2026.06.00（foundation-layout 1.11.3）里，`FlowRow` 的 `overflow` 参数以及 `FlowRowOverflow.Clip` / `Visible` 已被标为 deprecated（官方说明是 overflow 不再维护），所以更稳妥的做法是只用 `maxLines` 限制行数，再用自己的状态决定渲染哪些子项。
 
 `FlowRow` 位于 `androidx.compose.foundation.layout`，当前仍标注为实验 API，直接使用会编译报错，必须给所在函数加 `@OptIn(ExperimentalLayoutApi::class)`。这是它与稳定组件（如 `Row`）在写法上唯一的额外负担。
 
-最后是动态性：示例用 `remember { mutableStateListOf(...) }` 保存标签。`mutableStateListOf` 返回的列表是可观察的，`add`/`removeAt` 会通知 Compose 重组，`FlowRow` 就会按最新的子项集合重新计算换行位置——不需要任何手动布局或刷新代码。选中态用 `selectedTag: String?` 记录，点击同一个标签时置回 `null` 表示取消选中；删除标签时若删掉的正是选中项，也同步把选中态清空，避免状态指向一个已不存在的标签。
+最后是动态性：示例用 `remember { mutableStateListOf(...) }` 保存标签。`mutableStateListOf` 返回一个「可观察列表」——对它做增删时 Compose 能感知到（它是 Compose 的状态容器；`remember` 则负责让这份数据在下次重组时仍然保留，两者都在第 21 章详解）。`add`/`removeAt` 之后会触发重组，也就是「状态变化后，Compose 重新执行读取过该状态的 Composable 函数，用新值重新生成这部分界面」（详见第 22 章），`FlowRow` 就会按最新的子项集合重新计算换行位置——不需要任何手动布局或刷新代码。选中态用 `selectedTag: String?` 记录，点击同一个标签时置回 `null` 表示取消选中；删除标签时若删掉的正是选中项，也同步把选中态清空，避免状态指向一个已不存在的标签。
 
 ## 5. 实际执行过程
 

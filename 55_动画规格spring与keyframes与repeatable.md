@@ -15,7 +15,7 @@
 
 涉及的 androidx 包与官方 API：
 
-- `androidx.compose.animation.core`：`AnimationSpec`、`tween`、`spring`、`keyframes`、`repeatable`、`infiniteRepeatable`、`RepeatMode`、`FastOutSlowInEasing`、`LinearEasing`、`CubicBezierEasing`、`Spring`、`rememberInfiniteTransition`
+- `androidx.compose.animation.core`：`AnimationSpec`、`tween`、`spring`、`keyframes`、`repeatable`、`infiniteRepeatable`、`RepeatMode`、`FastOutSlowInEasing`、`LinearEasing`、`CubicBezierEasing`、`Spring`、`rememberInfiniteTransition`（无限动画入口，第 56 章详解）
 - `androidx.compose.animation`：`togetherWith`、`animateFloatAsState`
 
 ## 3. 项目源码片段
@@ -49,7 +49,7 @@ val progress by animateFloatAsState(
 )
 ```
 
-场景三：呼吸灯——透明度在 0.2 与 1 之间无限往返，用 `infiniteRepeatable` + `RepeatMode.Reverse`。
+场景三：呼吸灯——透明度在 0.2 与 1 之间无限往返，用 `infiniteRepeatable` + `RepeatMode.Reverse`。这里的"无限动画"指不会自己结束、一直循环播放的动画；普通 `animate*AsState` 只会播到目标值就停，想让它一直转需要换个容器——`rememberInfiniteTransition` 就是专门持续驱动无限动画的入口（第 56 章详解），本章只需用它把 `infiniteRepeatable` 跑起来。
 
 ```kotlin
 val alpha by rememberInfiniteTransition(label = "breath").animateFloat(
@@ -89,9 +89,9 @@ easing 描述的是**单位时间内的速度变化**：同样 300ms，起点快
 | `LinearEasing` | 匀速，适合进度条、无限循环 |
 | `FastOutLinearInEasing` | 快入线性出 |
 | `LinearOutSlowInEasing` | 线性入慢出 |
-| `CubicBezierEasing(x1, y1, x2, y2)` | 自定义贝塞尔曲线 |
+| `CubicBezierEasing(x1, y1, x2, y2)` | 用两个控制点的四个坐标自定义曲线（贝塞尔曲线，第 59 章详解） |
 
-easing 只影响速度分布，**不改变总时长**——这是新人最容易混淆的点。
+easing 只影响速度分布，**不改变总时长**——这是新人最容易混淆的点。表中的"贝塞尔曲线"指用控制点描述的光滑曲线（第 59 章详解），本章只需知道 `CubicBezierEasing` 的四个数字是**两个控制点的坐标**（起点 (0,0) 与终点 (1,1) 固定不动），曲线形状由这两个控制点共同决定。
 
 记住：easing 管"怎么动"，duration 管"动多久"，两者正交。
 
@@ -134,7 +134,7 @@ keyframes {
 ### 4.5 `repeatable` 与 `infiniteRepeatable`
 
 - `repeatable(iterations, animation, repeatMode)`：循环**有限次数**，结束后停在最终值；
-- `infiniteRepeatable(animation, repeatMode)`：**无限循环**，只能在无限动画上下文（如 `rememberInfiniteTransition`）中使用。
+- `infiniteRepeatable(animation, repeatMode)`：**无限循环**，只能在无限动画上下文（如 `rememberInfiniteTransition`，第 56 章详解）中使用。
 
 两者都有 `repeatMode`：
 
@@ -238,7 +238,7 @@ spring(dampingRatio = 0.2f, stiffness = Spring.StiffnessLow)
 animateFloatAsState(1f, infiniteRepeatable(tween(500)))
 ```
 
-`infiniteRepeatable` 只能用于无限动画上下文（`rememberInfiniteTransition` 等）；有限次循环用 `repeatable(iterations, ...)`。
+`infiniteRepeatable` 只能用于无限动画上下文（`rememberInfiniteTransition` 等，第 56 章详解）；有限次循环用 `repeatable(iterations, ...)`。
 
 ### 错误 5：把 easing 当"时长"
 

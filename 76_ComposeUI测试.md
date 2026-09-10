@@ -59,7 +59,7 @@ class CounterTest {
 
 2. 语义树是测试的"眼睛"：Compose 在渲染的同时会为每个携带语义的节点构建一棵语义树。Text、Button、Image 默认都带语义；测试不直接找 View，而是通过 SemanticsNodeInteraction 在这棵树上查找。这是 Compose 测试与旧 View 体系测试（Espresso 找控件）的本质区别：测试面向"语义"而非"实现"。
 
-3. 节点查找：onNodeWithText("+1") 按文本内容查找；onNodeWithTag 按 Modifier.testTag 查找——testTag 不显示在界面上，是专门给测试与语义用的"锚点"；onNodeWithContentDescription 按无障碍描述查找；更通用的写法是 onNode(hasText("+1"))——hasText 是一个 SemanticsMatcher，还能与 hasClickAction()、hasAnyDescendant(hasText(...)) 等组合成精确条件。
+3. 节点查找：onNodeWithText("+1") 按文本内容查找；onNodeWithTag 按 Modifier.testTag 查找——testTag 不显示在界面上，是专门给测试与语义用的"锚点"；onNodeWithContentDescription 按无障碍描述查找——无障碍指让 TalkBack 这类辅助工具能正确朗读并操作界面的能力（第 80 章详解），`contentDescription` 就是为它准备的说明文字；更通用的写法是 onNode(hasText("+1"))——hasText 是一个 SemanticsMatcher，还能与 hasClickAction()、hasAnyDescendant(hasText(...)) 等组合成精确条件。
 
 4. 交互与自动等待：performClick() 触发点击。测试框架在每次交互与断言前后会自动 waitForIdle，等待组合、布局、绘制完成，所以点击后的重组无需手动刷新——这是比 Flutter widget test 省心的地方。performScrollToNode(matcher) 在滚动容器内滚动到目标；performTextInput("hello") 模拟键盘输入；performTouchInput { swipeUp() } 模拟手势。
 

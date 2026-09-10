@@ -85,7 +85,7 @@ fun Greeting() {
 
 它不返回一个 Android `View`，也没有返回一个 Flutter `Widget`。
 
-它是在 Compose 的 UI 构建环境中执行，用代码描述当前 UI 应该包含什么。
+它是在 Compose 的组合过程中执行，用代码描述当前 UI 应该包含什么。
 
 可以先理解为：
 
@@ -120,7 +120,7 @@ return Text("Hello")
 
 从 Kotlin 语法角度看，`@Composable` 是一个注解。
 
-但是它不只是给人看的标记。Compose 编译器插件会识别它，并让这个函数参与 Compose 的构建与重组机制。
+但是它不只是给人看的标记。Compose 编译器插件会识别它，并让这个函数参与 Compose 的组合与重组机制（重组指状态变化后，Compose 重新执行「读取过该状态」的 Composable 函数，用新值重新生成这部分界面，第 22 章详解）。
 
 因此，不能把它理解成普通注释：
 
@@ -161,7 +161,7 @@ fun ShowTitle() {
 
 原因可以先简单理解成：
 
-> 普通 Kotlin 函数没有加入 Compose 当前 UI 构建过程，因此不能直接向 UI 树中加入 `Text`。
+> 普通 Kotlin 函数没有加入 Compose 当前的组合过程，因此不能直接向 UI 树中加入 `Text`。
 
 调用方向：
 
@@ -319,7 +319,7 @@ content : @Composable () -> Unit
 
 1. 调用它时不需要传参数：`()`
 2. 不返回业务值：`Unit`
-3. 函数体中允许构建 Compose UI：`@Composable`
+3. 函数体中允许调用 Composable、参与组合：`@Composable`
 
 例如：
 
@@ -454,7 +454,7 @@ fun Page() {
 }
 ```
 
-网络请求等副作用需要使用合适的 Effect 或放到 ViewModel 中。
+网络请求等副作用（指组合函数体之外、会对外部世界产生影响的操作，例如发请求、写文件、注册监听，第 25 章详解）需要使用合适的 Effect 或放到 ViewModel 中。
 
 本章先记住：
 
@@ -497,9 +497,9 @@ fun HomeScreen() {
 共同点：
 
 - 都声明 UI
-- 状态变化后都可能再次构建相关 UI
+- 状态变化后相关 UI 都可能再次组合
 - 都鼓励小组件组合
-- 构建函数中不应该随意产生不可控副作用
+- 组合函数中不应该随意产生不可控副作用
 
 主要差异：
 
@@ -615,7 +615,7 @@ Text(...)
 答案：
 
 1. 不是，Compose 编译器会识别并处理它。
-2. 普通函数不在 Compose UI 构建上下文中。
+2. 普通函数不在 Compose 的组合上下文中。
 3. 调用这个函数时不传参数。
 4. 不是，它是页面内的局部 UI 组件。
 5. 不保证，状态变化可能引发重组并再次执行。
@@ -626,7 +626,7 @@ Text(...)
 
 一句话：
 
-> `@Composable` 把一个 Kotlin 函数声明成 Compose UI 构建单元，它可以调用其他 Composable，并可能随着状态变化重新执行。
+> `@Composable` 把一个 Kotlin 函数声明成参与 Compose 组合的单元，它可以调用其他 Composable，并可能随着状态变化重新执行。
 
 先牢牢记住：
 

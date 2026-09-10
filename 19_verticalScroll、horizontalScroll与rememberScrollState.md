@@ -36,7 +36,7 @@ Row(
 
 ## 4. 逐步解释
 
-`verticalScroll` 是 Modifier，它让一个普通布局能够在内容尺寸超过视口时沿垂直方向偏移。它需要 `ScrollState` 保存当前滚动值、最大值以及滚动进行状态。使用 `rememberScrollState()` 可让同一次组合生命周期内重组后继续保持位置。
+`verticalScroll` 是 Modifier，它让一个普通布局能够在内容尺寸超过视口时沿垂直方向偏移。它需要 `ScrollState` 保存当前滚动值、最大值以及滚动进行状态。使用 `rememberScrollState()` 可让同一次组合生命周期内即使发生重组（状态变化后，Compose 重新执行「读取过该状态」的 Composable 函数，用新值重新生成这部分界面，详见第 22 章）也继续保持位置。
 
 与 LazyColumn 不同，Column 中的所有子项仍会一次性组合和测量，只是最终通过滚动偏移查看不同区域。因此它适合数量少、结构固定、需要把一个整体页面滚动起来的场景。水平滚动同理，只是常搭配 Row。
 

@@ -2,7 +2,7 @@
 
 ## 1. 本章目标
 
-理解 Compose Image 的图像来源、无障碍描述和缩放裁剪策略，并与 Flutter Image 做准确对照。
+理解 Compose Image 的图像来源、无障碍描述（无障碍：让 TalkBack 等辅助工具能正确朗读并操作界面的能力，第 80 章详解）和缩放裁剪策略，并与 Flutter Image 做准确对照。
 
 学完后，你应当能够：
 
@@ -33,7 +33,7 @@ Image(
 
 ## 4. 逐步解释
 
-项目先用 Android Bitmap 绘图，再调用 `asImageBitmap()` 转成 Compose `ImageBitmap`。`Image` 的 bitmap 重载直接显示该内存图像；资源图片常用 `painterResource`，网络图片通常使用 Coil 的 AsyncImage。
+项目先用 Android Bitmap 绘图（示例图是「三色渐变」：颜色沿某个方向平滑过渡的填充效果，属于绘制能力，第 60 章详解），再调用 `asImageBitmap()` 转成 Compose `ImageBitmap`。`Image` 的 bitmap 重载直接显示该内存图像；资源图片常用 `painterResource`，网络图片通常使用 Coil 的 AsyncImage。
 
 `contentDescription` 提供给 TalkBack 等辅助技术。如果图片只是纯装饰、朗读没有价值，可以明确传 null；如果承载信息，应写有意义的描述。`ContentScale.Crop` 等比放大直到填满目标区域，并裁掉溢出部分；`Fit` 保证整张图可见，目标区域可能留空。圆角不是 Image 参数，而由 Modifier.clip 提供。
 

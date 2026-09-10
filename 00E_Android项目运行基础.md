@@ -123,7 +123,7 @@ onCreate
 
 不要把 `onDestroy` 当成“应用一定退出”。配置变化、系统回收、用户返回和进程结束的行为不同，某些情况下系统也不会给应用执行最后清理代码的机会。
 
-Compose 中仍应使用生命周期感知收集：
+Compose 中仍应使用生命周期感知收集（指能感知 Activity 生命周期、在页面不可见时自动暂停收集，第 70 章详解）：
 
 ```kotlin
 val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -132,6 +132,8 @@ val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 详细的 Lifecycle 与 repeatOnLifecycle 在第 70 章讲解。
 
 ## 7. 四种容易混淆的存活范围
+
+这里的「保留」指对象还在内存中，「丢」指需要重新创建或重新读取。`remember` 与 `rememberSaveable` 是 Compose 提供的两种保存界面小值的写法（分别在第 21、23 章展开）：`remember` 的值在界面重新生成之间保留，节点离开界面后被丢弃；`rememberSaveable` 在此基础上还能在 Activity 重建后恢复。这里的「重组」指状态变化后，Compose 重新执行「读取过该状态」的 Composable 函数，用新值重新生成这部分界面（第 22 章）。
 
 | 对象/状态 | 通常何时保留 | 何时会丢 |
 | --- | --- | --- |

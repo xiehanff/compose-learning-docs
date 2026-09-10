@@ -27,7 +27,7 @@ Scaffold(
         TopAppBar(title = { Text("Compose 组件 Demo") })
     },
 ) { padding ->
-    LazyColumn(
+    LazyColumn( // LazyColumn 是列表组件，第 16 章详解
         modifier = Modifier
             .fillMaxSize()
             .padding(padding),
@@ -37,15 +37,17 @@ Scaffold(
 
 ## 4. 逐步解释
 
-`Scaffold` 自己不等于整个页面内容，它负责计算顶部栏、底部栏、悬浮按钮、Snackbar 等槽位之间的空间关系。`topBar` 是一个 UI 构建参数，调用方把 `TopAppBar` 交给它。最后的大括号是 `content` 参数，其中的 `padding` 是 `Scaffold` 根据顶部栏和系统 Insets 算出的 `PaddingValues`。
+`Scaffold` 自己不等于整个页面内容，它负责计算顶部栏、底部栏、悬浮按钮、Snackbar（第 29 章详解）等槽位之间的空间关系。`topBar` 是一个 UI 构建参数，调用方把 `TopAppBar` 交给它。最后的大括号是 `content` 参数，其中的 `padding` 是 `Scaffold` 根据顶部栏、底部栏和系统栏（状态栏、底部导航条）占用的空间算出的 `PaddingValues`（一个包含四个方向边距的值）。
 
-项目先让 `LazyColumn` 填满内容槽，再执行 `.padding(padding)`。因此列表真正可用的区域会避开标题栏。若忽略这个 padding，第一条内容通常会绘制在 TopAppBar 后面。这里的 `padding` 不是随便命名的普通数值，而是包含 start、top、end、bottom 四个方向的信息。
+项目先让列表（`LazyColumn`，第 16 章详解）填满内容槽，再执行 `.padding(padding)`。因此列表真正可用的区域会避开标题栏。若忽略这个 padding，第一条内容通常会绘制在 TopAppBar 后面。这里的 `padding` 不是随便命名的普通数值，而是包含 start、top、end、bottom 四个方向的信息。
 
 另外，`TopAppBar` 在本项目使用的 Material3 版本中仍标注为实验 API，使用时需要给所在函数加 `@OptIn(ExperimentalMaterial3Api::class)`（本项目的 `ComponentDetailScreen.kt`、`ScaffoldDemo.kt` 都写了）。
 
-### 4.1 innerPadding 与嵌套 Scaffold 的系统栏 insets
+### 4.1 innerPadding 与嵌套 Scaffold 的系统栏边距（WindowInsets）
 
-`components/ScaffoldDemo.kt` 演示了一个容易踩坑的场景：把「迷你 Scaffold」嵌进一个固定高度的 `Surface`（`height(440.px)`）里，用于在一屏内展示完整骨架。此时必须给槽位组件清零系统栏边距：
+`components/ScaffoldDemo.kt` 演示了一个容易踩坑的场景：把「迷你 Scaffold」嵌进一个固定高度的容器（高度用尺寸修饰符写成 `440.px`，尺寸修饰符详见第 13 章）里，用于在一屏内展示完整骨架。此时必须给槽位组件清零「系统栏边距」。
+
+这里的「系统栏边距」在 Compose 里叫 `WindowInsets`：状态栏、底部导航条会占住屏幕的一部分，系统把「被占用了多少」这个信息告诉应用，这个信息就是 `WindowInsets`（第 78 章详解）。示例把这些值清零：
 
 ```kotlin
 Scaffold(
@@ -57,6 +59,7 @@ Scaffold(
         )
     },
     bottomBar = {
+        // 底部栏放什么由你决定；这里的 NavigationBar（底部导航栏，第 31 章详解）只是示例
         NavigationBar(windowInsets = WindowInsets(0, 0, 0, 0)) { /* 三个 NavigationBarItem */ }
     },
 ) { innerPadding ->
@@ -71,8 +74,8 @@ Scaffold(
 
 准确的说法分三层：
 
-1. `TopAppBar` 和 `NavigationBar` 默认会把系统栏（状态栏、导航条）占用的高度算进自己的边距，这在「页面最外层」的 Scaffold 上是对的。
-2. 当 Scaffold 被嵌进固定高度容器、而外层详情页已经处理过一次系统栏时，这两条系统栏边距会重复叠加：顶栏被额外撑高、底栏下方多出一段空白。因此示例显式传入 `windowInsets = WindowInsets(0, 0, 0, 0)` 把它们清零。这里的 `WindowInsets(0, 0, 0, 0)` 是构造一个四边都为 0 的 insets 对象，表示「这里不再需要额外避让」。
+1. `TopAppBar` 和示例里的 `NavigationBar` 默认会把系统栏（状态栏、导航条）占用的高度算进自己的边距，这在「页面最外层」的 Scaffold 上是对的。
+2. 当 Scaffold 被嵌进固定高度容器、而外层详情页已经处理过一次系统栏时，这两条系统栏边距会重复叠加：顶栏被额外撑高、底栏下方多出一段空白。因此示例显式传入 `windowInsets = WindowInsets(0, 0, 0, 0)` 把它们清零。这里的 `WindowInsets(0, 0, 0, 0)` 是构造一个四边都为 0 的 `WindowInsets` 对象，表示「这里不再需要额外避让」。
 3. 清零的是「槽位组件自己的系统栏边距」，不影响 Scaffold 传给内容区的 `innerPadding`——内容区依然必须执行 `.padding(innerPadding)`，否则会被 topBar 和 bottomBar 压住。换句话说：`innerPadding` 负责「避开同页的栏」，槽位的 `windowInsets` 负责「避免重复计算系统栏」，两者不是同一件事，不能互相替代。
 
 因此，`Scaffold` 在页面最外层时通常保持默认即可；只有当它被嵌套进另一个已处理系统栏的容器里时，才需要给 `TopAppBar` / `NavigationBar` 清零 `windowInsets`。

@@ -17,7 +17,7 @@
 - `components/SnackbarDemo.kt`
 - `components/SideEffectDemo.kt`
 
-Theme.kt 使用 `SideEffect` 同步系统栏；SideEffectDemo.kt 完整演示了 `LaunchedEffect`、`DisposableEffect` 与 `rememberCoroutineScope` 三种副作用。
+Theme.kt 使用 `SideEffect` 同步系统栏；SideEffectDemo.kt 完整演示了 `LaunchedEffect`、`DisposableEffect` 与 `rememberCoroutineScope`（与组合同生命周期、供事件回调启动协程的作用域，第 49 章详解）三种副作用。
 
 ## 3. 项目源码片段
 
@@ -65,7 +65,7 @@ LaunchedEffect(key) 用于启动与组合节点绑定的协程。进入组合时
 
 DisposableEffect 适合「注册了就必须手动清理」的场景，它要求写 `onDispose` 回调：示例用 `if (panelVisible)` 把面板放进 / 移出组合，进入时记录一条日志，离开时由 `onDispose` 追加清理日志，对应 Flutter 的 `dispose()`。
 
-事件驱动型的协程要用 `rememberCoroutineScope().launch`：Snackbar 的 `showSnackbar` 是用户点击后发生的挂起函数，而点击回调不是 suspend 环境；`SideEffectDemo.kt` 的「1.5 秒延迟任务」同理——`LaunchedEffect` 没有 `onClick` 这类入口，不能直接接收点击回调，只在进入组合 / key 变化时自动执行。要区分两种情况：点击若改变的是它的 key（例如小节一的开关点击写入 `timerOn`），确实会间接触发一次「取消旧协程 + 启动新协程」的重启，但那本质上仍是「状态变化驱动」，并不是把这次点击当作事件交给协程；要表达「点一次做一件事」这种事件语义，仍应自己取作用域再 launch。该作用域与组合同生命周期，离开组合时其中的协程自动取消。
+事件驱动型的协程要用 `rememberCoroutineScope().launch`：`rememberCoroutineScope()` 返回一个与当前组合同生命周期的协程作用域，专门用于在 `onClick` 这类不是 suspend 环境的回调里启动协程（第 49 章详解）；Snackbar 的 `showSnackbar`（`SnackbarHostState` 上用于显示一条 Snackbar、会挂起到提示消失的挂起函数，第 29 章详解）是用户点击后发生的挂起函数，而点击回调不是 suspend 环境；`SideEffectDemo.kt` 的「1.5 秒延迟任务」同理——`LaunchedEffect` 没有 `onClick` 这类入口，不能直接接收点击回调，只在进入组合 / key 变化时自动执行。要区分两种情况：点击若改变的是它的 key（例如小节一的开关点击写入 `timerOn`），确实会间接触发一次「取消旧协程 + 启动新协程」的重启，但那本质上仍是「状态变化驱动」，并不是把这次点击当作事件交给协程；要表达「点一次做一件事」这种事件语义，仍应自己取作用域再 launch。该作用域离开组合时其中的协程会自动取消。
 
 网络请求不能直接写在 Composable 函数体，否则重组可能重复执行。
 

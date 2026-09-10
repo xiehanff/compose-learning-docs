@@ -15,10 +15,10 @@
 
 涉及的 androidx 包与官方 API：
 
-- `androidx.compose.animation.core`：`Animatable`、`spring`、`tween`、`AnimationVector`、`Spring`
+- `androidx.compose.animation.core`：`Animatable`、`spring`（弹簧物理动画规格，第 55 章详解）、`tween`、`AnimationVector`、`Spring`
 - `androidx.compose.runtime`：`remember`、`rememberCoroutineScope`、`LaunchedEffect`
-- `androidx.compose.foundation.gestures`：`detectDragGestures`
-- `androidx.compose.ui.input.pointer`：`pointerInput`
+- `androidx.compose.foundation.gestures`：`detectDragGestures`（拖动识别器，第 65 章详解）
+- `androidx.compose.ui.input.pointer`：`pointerInput`（手势检测入口，第 65 章详解）
 - `androidx.compose.ui.unit`：`IntOffset`、`dp`
 - `androidx.compose.foundation`：`background`、`shape`
 
@@ -56,6 +56,8 @@ fun AnimateThenCallback(onFinished: () -> Unit) {
 ```
 
 场景二：拖拽小球松手后回弹到原点。这里 `onDragEnd` 不是挂起环境，用 `rememberCoroutineScope` 启动协程。
+
+拖动本身由手势检测提供：`pointerInput` 负责在节点上接住指针事件，`detectDragGestures` 负责把「按下—移动—抬起」的原始事件识别成拖动回调（两者第 65 章详解）。本章只关心识别出拖动之后的事：跟手移动用 `snapTo`，松手回弹用 `spring` 规格——一种由物理参数（阻尼、刚度）推算时长、而不是预设固定时长的弹簧动画规格（第 55 章详解）。它是否会「过冲再回弹」取决于阻尼：示例里用的 `DampingRatioMediumBouncy` 属于欠阻尼，会冲过目标值再弹回来；阻尼加到临界或过阻尼后就只会逼近目标，不再回弹。
 
 ```kotlin
 @Composable
@@ -212,7 +214,7 @@ class _DemoState extends State<Demo> with SingleTickerProviderStateMixin {
 
 - 都支持"播放到某个目标值，结束后做后续动作"（`animateTo` 挂起返回 ≈ `forward().then(...)`）；
 - 都支持立即跳转（`snapTo` ≈ `controller.value = x` 或 `jumpTo`）；
-- 都支持 spring 物理动画（Compose `spring` ≈ Flutter `SpringSimulation`）。
+- 都支持 spring 物理动画（Compose `spring` ≈ Flutter `SpringSimulation`，规格细节见第 55 章）。
 
 本质区别：
 

@@ -51,7 +51,7 @@ Compose 没有 Flutter 那种同时提供尺寸、边距、背景、圆角、边
 2. 容器读取 MaterialTheme 默认值
 3. 测量并布局 content
 4. 绘制背景、形状和 elevation
-5. 可点击版本再处理交互与无障碍语义
+5. 可点击版本再处理交互与无障碍语义（无障碍：让 TalkBack 等辅助工具能正确朗读并操作界面的能力，第 80 章详解）
 
 ## 6. Flutter / Dart 3 对照
 

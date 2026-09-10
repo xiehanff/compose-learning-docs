@@ -39,7 +39,7 @@ Box(Modifier.fillMaxWidth().height(156.px)) {
 
 使用 `when(index)` 时，只有当前分支存在；切换后旧分支离开组合，内部 remember 状态通常被丢弃。要接近 Flutter IndexedStack，就让全部面板始终存在于同一个 Box，再用 zIndex 把选中面板放到上层。
 
-不过 zIndex 只控制绘制层级，不会自动停止未选面板的点击、语义、副作用或资源消耗。真实实现要同时处理 alpha、输入、无障碍和生命周期，或者采用导航 saveState、SaveableStateHolder 等更合适方案。
+不过 zIndex 只控制绘制层级，不会自动停止未选面板的点击、语义、副作用或资源消耗。真实实现要同时处理 alpha、输入、无障碍（无障碍，第 80 章详解）和生命周期，或者采用导航 saveState、SaveableStateHolder 等更合适方案。
 
 ## 5. 实际执行过程
 

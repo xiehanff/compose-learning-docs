@@ -190,7 +190,7 @@ DemoTheme(darkTheme = true) {
 dynamicColor: Boolean = true
 ```
 
-控制 Android 12 及以上是否使用系统动态颜色。
+控制 Android 12 及以上是否使用系统动态颜色（动态颜色指从用户壁纸中提取一套配色，第 77 章详解）。
 
 项目逻辑：
 
@@ -355,6 +355,8 @@ MaterialTheme(colorScheme = anotherScheme) {
 
 ## 9. `CompositionLocalProvider` 是什么
 
+`CompositionLocalProvider` 的作用是向下传递局部值：它把某个值提供给自己的内容子树，子树中的组件读取对应环境对象时就能拿到这个值（背后的 `CompositionLocal` 机制详见第 42 章）。
+
 项目代码：
 
 ```kotlin
@@ -454,7 +456,7 @@ val colors = MaterialTheme.colorScheme
 
 | Compose | Flutter 概念对照 |
 |---|---|
-| `CompositionLocal` | `InheritedWidget` / Provider 提供的上层环境值 |
+| `CompositionLocal`（向下传递局部值的方式，第 42 章） | `InheritedWidget` / Provider 提供的上层环境值 |
 | `CompositionLocalProvider` | 在子树上方注入值 |
 | `LocalDemoTheme.current` | `Something.of(context)` 或 Provider 读取 |
 
@@ -463,6 +465,8 @@ val colors = MaterialTheme.colorScheme
 ---
 
 ## 11. `SideEffect` 在主题中的作用
+
+`SideEffect` 用来执行「副作用」：副作用指组合函数体之外、会对外部世界产生影响的操作（例如修改系统窗口）。它在每次成功重组后执行一次，完整限制详见第 25 章。
 
 项目中：
 
@@ -487,7 +491,7 @@ MaterialTheme 配置 Compose UI
 SideEffect 同步外部系统对象
 ```
 
-`SideEffect` 的完整生命周期和使用限制会在后面的 Effect 章节详讲。
+`SideEffect` 的完整生命周期和使用限制会在第 25 章详讲。
 
 ---
 

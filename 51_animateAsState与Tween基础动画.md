@@ -4,7 +4,7 @@
 
 学完后，你应当能够：
 
-- 用一行声明式的代码让 Float、Dp、Color 等值随状态变化自动播放动画，不再手写 Animatable 和帧回调
+- 用一行声明式的代码让 Float、Dp、Color 等值随状态变化自动播放动画，不再手写 Animatable 和帧回调（Animatable 见第 52 章）
 - 说清 animate*AsState 家族返回值的类型，以及 targetValue 变化后内部发生了什么
 - 区分「值动画」与 AnimatedVisibility「内容出现/消失动画」的适用场景
 - 避开动画期间反复改 targetValue、尺寸单位混用等常见坑
@@ -19,7 +19,7 @@
 
 ## 3. 项目源码片段
 
-场景：社区 App 的点赞按钮。点击后心形与数字放大一下再回落，背景从透明渐变为主题红。整段动画不需要任何手动进度控制，只声明「目标值」。
+场景：社区 App 的点赞按钮。点击后心形与数字放大一下再回落，背景从透明过渡为主题红。整段动画不需要任何手动进度控制，只声明「目标值」。
 
 ```kotlin
 @Composable
@@ -30,7 +30,7 @@ fun LikeButton(isLiked: Boolean, likeCount: Int, onToggle: () -> Unit) {
         animationSpec = tween(durationMillis = 220),
         label = "likeScale"
     )
-    // 背景色：点赞后渐变为主题红
+    // 背景色：点赞后过渡为主题红
     val bgColor by animateColorAsState(
         targetValue = if (isLiked) Color(0xFFFF6B81) else Color.Transparent,
         label = "likeBackground"
@@ -83,13 +83,13 @@ fun ExpandableCard(expanded: Boolean) {
 
 3. **内部机制**：该 API 自带 `remember`，首次组合时创建一个内部动画对象（本质是 Animatable）并立即 snapTo 到初始 targetValue。之后每次重组发现 targetValue 与当前值不同，就自动启动动画，从当前值插值到新目标。这就是「隐式动画」：你只管目标，过程交给系统。
 
-4. **默认动画规格**：不传 animationSpec 时默认使用 `tween(durationMillis = 500)` 配合 FastOutSlowInEasing（快进慢出），即大多数 Material 组件的手感。需要改时长或曲线时显式传 tween。
+4. **默认动画规格**：动画规格（`AnimationSpec`）就是描述动画「怎么动」的参数集合——时长、缓动曲线、是否回弹，第 55 章详解；不传 `animationSpec` 时，这一族函数的默认值是 `spring()`（弹簧物理动画规格：时长由阻尼、刚度推算，不是预设的固定时长，第 55 章详解），并不是 `tween`。需要固定时长或自定速度曲线时，才显式传 `tween(durationMillis = ..., easing = ...)`。
 
 5. **label 参数**：给动画起名字，供 Android Studio 的 Animation 调试面板（Layout Inspector）识别。生产代码可省略，但调试动画问题时强烈建议写上。
 
 6. **动画期间每帧重组是预期行为**：动画进行中，每次帧时钟回调都会产生一个新插值，Compose 读到变化的值后只重组「读取该值」的作用域（上面例子中只有 graphicsLayer 和 background 被重组）。这不是性能问题，反而是值动画的高效之处——未读取的部分不重组。
 
-7. **与 AnimatedVisibility 的差异**：animate*AsState 只动「值」，内容本身始终在组合中；AnimatedVisibility 动的是「内容的出现与消失」，会在组合中增删内容。需要"内容移入/移出"时用 AnimatedVisibility，需要"某个属性渐变"时用 animate*AsState，二者互补。
+7. **与 AnimatedVisibility 的差异**：animate*AsState 只动「值」，内容本身始终在组合中；AnimatedVisibility 动的是「内容的出现与消失」，会在组合中增删内容。需要"内容移入/移出"时用 AnimatedVisibility，需要"某个属性平滑变化"时用 animate*AsState，二者互补。
 
 记住：animate*AsState 的核心心智模型是「声明目标值，系统自动补间」，返回值是可被任意 UI 属性读取的 State。
 

@@ -7,7 +7,7 @@
 学完后，你应当能够：
 
 - 知道 mutableStateOf 返回可观察状态
-- 理解 remember 跨重组保留状态对象
+- 理解 remember 跨重组保留状态对象（重组详见第 22 章）
 - 理解 `by` 与 `.value` 的等价关系
 - 区分普通局部变量和 Compose State
 
@@ -36,7 +36,7 @@ if (showDialog) {
 
 ## 4. 逐步解释
 
-`mutableStateOf(false)` 返回 `MutableState<Boolean>`。Composable 在组合期间读取其值时，Compose 会记录依赖；值变化后，读取它的 UI 范围会被安排重组。`remember { ... }` 把这个状态对象保存到当前组合位置，避免每次重组都重新创建并回到 false。
+`mutableStateOf(false)` 返回 `MutableState<Boolean>`。Composable 在组合期间读取其值时，Compose 会记录依赖；值变化后，读取它的 UI 范围会被安排重组。所谓「重组」，就是**状态变化后，Compose 重新执行「读取过该状态」的 Composable 函数，用新值重新生成这部分界面**——这正是「改一下状态，界面就跟着变」的原因，也是本章一切写法的落点，详见第 22 章。`remember { ... }` 把这个状态对象保存到当前组合位置，避免每次重组都重新创建并回到 false。
 
 `var showDialog by state` 是 Kotlin 属性委托。读取变量等价于 `state.value`，赋值等价于修改 `state.value`。项目中的 `mutableIntStateOf`、`mutableFloatStateOf` 是针对基础类型的专用状态。普通 `var count = 0` 放在 Composable 函数体中既不会被观察，也会在再次执行函数时重新初始化。
 

@@ -109,7 +109,7 @@ fun ViewSwitcher(mode: ViewMode) {
 
 ### 4.2 `AnimatedContent`：内容切换的过渡
 
-`AnimatedContent(targetState, transitionSpec)` 管理的是**内容状态本身的变化**：当 `targetState` 变化时，旧内容播放退出过渡、新内容播放进入过渡，两者在切换期间**同时存在于组合中**，所以可以做出"旧内容向左滑出、新内容向右滑入"的效果。
+`AnimatedContent(targetState, transitionSpec)` 管理的是**内容状态本身的变化**：当 `targetState` 变化时，旧内容播放退出过渡、新内容播放进入过渡，两者在切换期间**同时存在于组合中**，所以可以做出"旧内容向左滑出、新内容向右滑入"的效果。这里的 `transitionSpec` 可以读作「过渡配方」：它是一个 lambda，规定新内容怎么进、旧内容怎么出，并把这两者配成一对交给框架播放（第 54 章的子动画上还会出现一个同名参数，含义不同，到时再区别）。
 
 关键点：
 
@@ -121,7 +121,9 @@ fun ViewSwitcher(mode: ViewMode) {
 
 ### 4.3 `Crossfade`：最简单的切换
 
-`Crossfade(targetState)` 是 `AnimatedContent` 的简化特例：内部就是 `fadeIn` + `fadeOut` 的交叉渐变，不提供位移等自定义过渡。新旧内容在同一区域**重叠绘制**，布局尺寸按新内容计算。适合 logo 切换、主题切换这类"只需要淡入淡出"的场景。
+`Crossfade(targetState)` 是 `AnimatedContent` 的简化特例：内部就是 `fadeIn` + `fadeOut` 的交叉淡入淡出（透明度此消彼长），不提供位移等自定义过渡。新旧内容在同一区域**重叠绘制**，布局尺寸按新内容计算。适合 logo 切换、主题切换这类"只需要淡入淡出"的场景。
+
+注意术语：本章说的"淡入淡出"指的是透明度变化，和第 60 章讲的"渐变"（颜色沿某个方向平滑过渡的填充效果）不是一回事。
 
 ### 4.4 三者如何选择
 
@@ -131,7 +133,7 @@ fun ViewSwitcher(mode: ViewMode) {
 | 内容整体切换且需要位移+淡入等复杂过渡 | `AnimatedContent` |
 | 内容整体切换，只需淡入淡出 | `Crossfade` |
 
-判断口诀：**先问"动的是存在性还是内容本身"，再问"要不要位移动画"**。出现/消失用 `AnimatedVisibility`；切换内容要复杂过渡用 `AnimatedContent`；切换内容只要渐变用 `Crossfade`。
+判断口诀：**先问"动的是存在性还是内容本身"，再问"要不要位移动画"**。出现/消失用 `AnimatedVisibility`；切换内容要复杂过渡用 `AnimatedContent`；切换内容只要淡入淡出用 `Crossfade`。
 
 ### 4.5 退出动画期间的注意点
 
@@ -227,7 +229,7 @@ Crossfade 不做尺寸过渡，新内容尺寸直接生效，大内容切小内�
 
 1. `visible = false` 后，内容会立刻从组合中移除吗？
 2. `AnimatedContent` 与 `Crossfade` 的区别是什么？
-3. 展开面板、Tab 切换、Logo 渐变切换，分别应选哪个 API？
+3. 展开面板、Tab 切换、Logo 淡入淡出切换，分别应选哪个 API？
 
 答案：
 
@@ -237,4 +239,4 @@ Crossfade 不做尺寸过渡，新内容尺寸直接生效，大内容切小内�
 
 ## 9. 本章总结
 
-`AnimatedVisibility`、`AnimatedContent`、`Crossfade` 覆盖了"出现/消失、内容切换、简单渐变"三类过渡需求，核心机制都是"新旧内容在过渡期间共存"。选择的关键是判断动画对象是元素存在性还是内容本身，以及是否需要位移动画。理解了它们的边界，大多数页面过渡都可以用声明式写法完成。
+`AnimatedVisibility`、`AnimatedContent`、`Crossfade` 覆盖了"出现/消失、内容切换、简单淡入淡出"三类过渡需求，核心机制都是"新旧内容在过渡期间共存"。选择的关键是判断动画对象是元素存在性还是内容本身，以及是否需要位移动画。理解了它们的边界，大多数页面过渡都可以用声明式写法完成。

@@ -8,7 +8,7 @@
 
 - 理解 Button 的 content Lambda
 - 使用 IconButton 提供正确触控区域
-- 为 Icon 提供合适无障碍描述
+- 为 Icon 提供合适无障碍描述（第 80 章详解）
 - 避免重复 clickable
 
 ## 2. 项目中的位置
@@ -58,7 +58,7 @@ Material3 把按钮按「视觉权重」分成五个层级，它们的调用签�
 
 内容 lambda 里可以放任意 Composable。示例用 `if (clickCount == 0) ... else ...` 让按钮文字随计数状态变化，直观看到「状态驱动 UI」：点击后 `clickCount++`、状态变化、按钮文字重绘，不需要手动刷新任何东西。
 
-contentDescription 服务 TalkBack 等无障碍工具。图标承载独立信息时应写有意义描述；如果父级按钮已经提供完整语义，纯装饰 Icon 可以传 null，避免重复朗读。`ButtonDemo.kt` 的爱心图标把「收藏 / 取消收藏」写在 contentDescription 里并随状态切换，是对的做法。除此之外，`Icon` 还可以用 `tint` 染色：示例在收藏时把爱心染成红色，未收藏时使用主题的次要色。
+contentDescription 服务 TalkBack 等无障碍工具（无障碍：让 TalkBack 等辅助工具能正确朗读并操作界面，第 80 章详解）。图标承载独立信息时应写有意义描述；如果父级按钮已经提供完整语义，纯装饰 Icon 可以传 null，避免重复朗读。`ButtonDemo.kt` 的爱心图标把「收藏 / 取消收藏」写在 contentDescription 里并随状态切换，是对的做法。除此之外，`Icon` 还可以用 `tint` 染色：示例在收藏时把爱心染成红色，未收藏时使用主题的次要色。
 
 不要给 IconButton 外层再加 clickable，否则可能产生两层点击和语义冲突。
 
@@ -91,7 +91,7 @@ ElevatedButton(onPressed: onBack, child: const Text('返回首页'));
 - 图标没有 contentDescription 或 tooltip
 - 用 Text.clickable 模拟所有按钮，丢失标准语义
 - 一屏堆多个 `Button`（Filled）争当主操作，没利用 `FilledTonalButton` / `OutlinedButton` / `TextButton` 拉开权重
-- 禁用态用 `alpha` 或自定义颜色自己模拟，而不用 `enabled = false`
+- 禁用态用 `alpha`（控制透明度的属性，第 57 章详解）或自定义颜色自己模拟，而不用 `enabled = false`
 - 收藏类图标切换时只换 `imageVector`，忘了同步改 `contentDescription`，TalkBack 仍读旧语义
 
 ## 8. 本章检查题

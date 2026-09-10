@@ -108,7 +108,7 @@ UDF 的闭环：UI 事件（点击）→ 调用 ViewModel 方法 → 方法修�
 
 不要把“Toast、导航、Snackbar”机械地等同于必须使用 Channel。ViewModel 通常比当前 Compose UI 活得更久；当没有消费者时，Channel/事件流不能保证事件已经被 UI 接收和处理。对用户有意义的结果应尽量立即归约到 UI State，例如 `userMessage`，UI 处理后再发送 `userMessageShown()` 清除。纯粹属于 UI 层的导航和显示逻辑，也可以直接在 UI 事件处理链中完成。
 
-冷流（数据库/网络 Flow）每次收集都会重新执行上游，直接暴露给 UI 收集成本高。用 `stateIn` 把它转成热流托管在 viewModelScope；`WhileSubscribed(5000)` 表示最后一个订阅者离开 5 秒后停止上游，避免后台空跑。
+冷流（数据库/网络 Flow）每次收集都会重新执行上游，直接暴露给 UI 收集成本高。用 `stateIn` 把它转成热流托管在 viewModelScope：`stateIn` 的作用就是给一个 Flow 挂上"共享"与"何时启动/停止上游"的策略，让多个订阅者共用同一个上游、并得到一个随时可读当前值的结果；`WhileSubscribed(5000)` 表示最后一个订阅者离开 5 秒后停止上游，避免后台空跑。（`stateIn` 的参数全貌与数据库场景下的用法第 72 章会再讲。）
 
 最后是分工：remember + mutableStateOf 管本地 UI 状态（输入框、开关、展开态），ViewModel + StateFlow 管页面级状态（需要跨重组、跨配置变化保留的数据）。
 
