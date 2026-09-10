@@ -47,9 +47,59 @@ fun DemoApp() {
 
 本章先理解导航结构，第 5 章再专门拆点击回调。
 
+还需要先说清楚这套写法在官方方案里的位置：
+
+> 项目使用的是 `androidx.navigation:navigation-compose` 的**字符串路由**写法（通常称为 Nav2 风格），目的地和参数都写成字符串。这套写法目前在大量存量项目中广泛使用，学习和维护价值很高。官方现在也有更新的方案：类型安全导航见第 71 章，Navigation 3 见新增章节。本章只讲字符串路由这套基础，不展开新旧方案的对比。
+
 ---
 
-## 2. 导航需要解决什么问题
+## 2. 先分清三个概念：目的地、返回栈、导航动作
+
+导航（navigation）指“用户从一个界面进入另一个界面，并且能够按顺序返回”这件事。它由三个概念组成。先把概念看明白，再看第 3 节之后的具体 API。
+
+### 目的地（destination）
+
+目的地是一个“可以被进入的界面单元”，例如首页、详情页、登录页。
+
+在当前写法里，一个目的地由一个路由字符串标识，并绑定到一个 Composable：
+
+```text
+目的地：首页
+路由字符串：home
+绑定的界面：HomeScreen
+```
+
+注意：目的地是概念，路由字符串只是它在字符串路由写法里的表示方式。
+
+### 返回栈（back stack）
+
+用户可能一层层进入多个界面：
+
+```text
+首页 → 详情页 → 详情页里的子页面
+```
+
+系统必须记住“用户是按什么顺序进来的”，否则按返回键时不知道该回到哪里。记录这个顺序的结构就是返回栈：它是一种后进先出的栈，最后进入的目的地放在栈顶。
+
+```text
+[首页, 详情页, 子页面]
+                    ↑ 栈顶：当前正在显示的目的地
+```
+
+### 导航动作
+
+导航动作就是对返回栈的操作，常见只有两类：
+
+```text
+前进：进入一个新目的地 → 新目的地压到栈顶
+返回：回到上一个目的地 → 弹出栈顶目的地
+```
+
+后面 API 里的 `navigate(...)` 和 `popBackStack()`，分别对应这两个动作。
+
+这三点与具体框架无关。Flutter 的 `Navigator` 也是同一套模型：它同样有目的地、返回栈和前进/返回动作。
+
+### 项目里要解决什么
 
 应用有两个主要页面：
 
@@ -70,17 +120,27 @@ fun DemoApp() {
 回到首页
 ```
 
-导航系统负责：
+对应到上面的概念，导航系统负责：
 
-- 页面和路由的对应关系
-- 当前显示哪个页面
-- 跳转
-- 返回栈
-- 路由参数
+- 目的地和路由字符串的对应关系
+- 目的地与 Composable 的绑定
+- 当前显示哪个目的地
+- 执行导航动作（前进、返回）
+- 维护返回栈
+- 解析路由参数
 
 ---
 
 ## 3. `rememberNavController()`
+
+三个概念落到 Compose Navigation 的具体 API 上，是这样分工的：
+
+```text
+目的地          → composable(route) { ... } 注册
+目的地集合       → NavHost 持有并显示
+返回栈          → NavController 内部维护
+导航动作        → NavController.navigate(...) / popBackStack()
+```
 
 ```kotlin
 val navController = rememberNavController()
@@ -410,7 +470,9 @@ ComponentRegistry.findById(componentId)
 
 ---
 
-## 11. 返回栈是什么
+## 11. 返回栈的实际变化：navigate 压栈，popBackStack 弹栈
+
+第 2 节已经把返回栈当成概念解释过；这里看它在项目里的具体变化。
 
 初始状态：
 
@@ -491,6 +553,15 @@ composable("detail/{componentId}") { entry ->
 | `navigate(route)` | `push(...)` / router 跳转 |
 | `popBackStack()` | `Navigator.pop(context)` |
 | `backStackEntry` | 当前 Route 及其参数环境 |
+
+概念上的对应关系更清楚：
+
+```text
+目的地     ≈ Flutter 的一个页面（Route）
+返回栈     ≈ Navigator 维护的页面栈
+navigate   ≈ push
+popBackStack ≈ pop
+```
 
 ---
 
@@ -576,7 +647,7 @@ component/text
 
 ## 15. 本章检查题
 
-1. `NavHost` 和 `NavController` 各负责什么？
+1. 目的地、返回栈、导航动作分别指什么？`NavHost` 和 `NavController` 又各负责什么？
 2. `startDestination = "home"` 的作用是什么？
 3. `composable("home")` 中的 `composable` 与 `@Composable` 是同一东西吗？
 4. `detail/text` 如何匹配 `detail/{componentId}`？
@@ -584,7 +655,7 @@ component/text
 
 答案：
 
-1. `NavHost` 声明并显示目的地；`NavController` 控制跳转和返回栈。
+1. 目的地是可以被进入的界面单元（在字符串路由写法里由路由字符串标识）；返回栈是记录到过哪些目的地及其顺序的后进先出结构；导航动作是对返回栈的操作，前进压栈、返回弹栈。API 层面：`NavHost` 声明并显示目的地；`NavController` 维护返回栈并执行导航动作。
 2. 指定导航图首次显示首页。
 3. 不是。
 4. `text` 被解析为 `componentId` 参数。
@@ -594,10 +665,16 @@ component/text
 
 ## 16. 本章总结
 
-项目导航主线：
+项目导航主线，先概念后 API：
 
 ```text
-rememberNavController
+概念层
+目的地（route 字符串 → Composable）
+返回栈（[home] → [home, detail/text]）
+导航动作（navigate 压栈 / popBackStack 弹栈）
+        ↓
+API 层
+rememberNavController → NavController
         ↓
 NavHost(startDestination = "home")
         ↓
@@ -612,4 +689,4 @@ ComponentDetailScreen
 
 一句话：
 
-> `NavController` 管跳转和返回栈，`NavHost` 管路由与页面的映射，`composable` 声明每个路由应该显示哪个 Composable。
+> 目的地、返回栈、导航动作是模型；`NavHost` 管目的地与页面的映射，`NavController` 管返回栈和导航动作，`composable` 声明每个路由应该显示哪个 Composable。

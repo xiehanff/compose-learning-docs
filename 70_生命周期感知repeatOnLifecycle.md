@@ -13,8 +13,8 @@
 
 进阶篇不再局限于 compose_demo 项目，本章使用通用 Compose API。
 
-- `androidx.lifecycle`：Lifecycle、repeatOnLifecycle、lifecycleScope、LifecycleEventEffect
-- `androidx.lifecycle.compose`：collectAsStateWithLifecycle、LocalLifecycleOwner
+- `androidx.lifecycle`：Lifecycle、repeatOnLifecycle、lifecycleScope
+- `androidx.lifecycle.compose`：collectAsStateWithLifecycle、LifecycleEventEffect、LocalLifecycleOwner
 - `androidx.activity`：ComponentActivity
 
 ## 3. 项目源码片段

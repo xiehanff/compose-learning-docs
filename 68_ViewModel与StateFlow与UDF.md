@@ -7,7 +7,7 @@
 - 用 ViewModel + StateFlow 组织页面级状态，理解 ViewModel 的职责边界
 - 理解 UDF 单向数据流：事件只进 ViewModel，状态只从 ViewModel 流出
 - 区分 UI State 与 UI 事件，理解重要结果为什么应归约为状态
-- 用 stateIn + WhileSubscribed 把冷流转成热流并托管生命周期
+- 用 stateIn + WhileSubscribed 把 `flow { }` 这类冷流 producer 转成共享的热流并托管生命周期
 
 ## 2. 项目中的位置
 
@@ -56,7 +56,7 @@ class CounterViewModel : ViewModel() {
 }
 ```
 
-场景二：冷流转热流，用 stateIn 托管：
+场景二：把 `flow { }` 这类冷流 producer 转成热流，用 stateIn 托管：
 
 ```kotlin
 class WeatherViewModel : ViewModel() {
@@ -102,13 +102,15 @@ fun CounterScreen(viewModel: CounterViewModel = viewModel()) {
 
 ViewModel 的职责很纯粹：持有 UI 状态、处理业务逻辑、跨配置变化存活。旋转屏幕时 Activity 重建，但 ViewModelStore 保留旧实例，viewModel() 取回的是同一个对象，所以计数不会丢。注意 ViewModel 里**不能**持有 Composable、Context、View 引用，否则泄漏且无法测试。
 
-StateFlow 与普通 Flow 的区别是本章的基石：StateFlow 是热流，有当前值（value 随时可读）、相同值不重复发射（去重）、UI 收集时立刻拿到最新值。注意内部用 MutableStateFlow，对外只暴露 `asStateFlow()` 转成的只读视图，UI 永远拿不到写入口。
+先澄清一个常见误会：`Flow` 只是一个**接口**，它本身不描述冷热，`StateFlow`、`SharedFlow` 也都是 `Flow` 的实现。冷热说的是**实现方式**：`flow { }` 这类 builder、以及 Room/DataStore 返回的 Flow，默认是**冷流**；`StateFlow` / `SharedFlow` 是**热流**。
+
+StateFlow 与 `flow { }` 这类冷流 producer 的差别是本章的基石：StateFlow 是热流，独立于收集者存在、共享上游，有当前值（value 随时可读）、相同值不重复发射（去重）、UI 收集时立刻拿到最新值。注意内部用 MutableStateFlow，对外只暴露 `asStateFlow()` 转成的只读视图，UI 永远拿不到写入口。
 
 UDF 的闭环：UI 事件（点击）→ 调用 ViewModel 方法 → 方法修改状态 → StateFlow 发射 → collectAsStateWithLifecycle 收集 → 重组。状态只有一个来源，UI 只读不写，这就是「单向」的含义。
 
 不要把“Toast、导航、Snackbar”机械地等同于必须使用 Channel。ViewModel 通常比当前 Compose UI 活得更久；当没有消费者时，Channel/事件流不能保证事件已经被 UI 接收和处理。对用户有意义的结果应尽量立即归约到 UI State，例如 `userMessage`，UI 处理后再发送 `userMessageShown()` 清除。纯粹属于 UI 层的导航和显示逻辑，也可以直接在 UI 事件处理链中完成。
 
-冷流（数据库/网络 Flow）每次收集都会重新执行上游，直接暴露给 UI 收集成本高。用 `stateIn` 把它转成热流托管在 viewModelScope：`stateIn` 的作用就是给一个 Flow 挂上"共享"与"何时启动/停止上游"的策略，让多个订阅者共用同一个上游、并得到一个随时可读当前值的结果；`WhileSubscribed(5000)` 表示最后一个订阅者离开 5 秒后停止上游，避免后台空跑。（`stateIn` 的参数全貌与数据库场景下的用法第 72 章会再讲。）
+`flow { }` 这类 builder、以及 Room/DataStore 返回的 Flow 默认是冷流，每个收集者都会重新执行上游，直接暴露给 UI 收集成本高。用 `stateIn` 把它转成热流托管在 viewModelScope：`stateIn` 的作用就是给一个 Flow 挂上"共享"与"何时启动/停止上游"的策略，让多个订阅者共用同一个上游、并得到一个随时可读当前值的结果；`WhileSubscribed(5000)` 表示最后一个订阅者离开 5 秒后停止上游，避免后台空跑。（`stateIn` 的参数全貌与数据库场景下的用法第 72 章会再讲。）
 
 最后是分工：remember + mutableStateOf 管本地 UI 状态（输入框、开关、展开态），ViewModel + StateFlow 管页面级状态（需要跨重组、跨配置变化保留的数据）。
 
@@ -138,12 +140,14 @@ class CounterModel extends ChangeNotifier {
   }
 }
 
-final counterProvider = ChangeNotifierProvider((_) => CounterModel());
+final counterProvider = ChangeNotifierProvider(create: (_) => CounterModel());
 
-class CounterScreen extends ConsumerWidget {
+class CounterScreen extends StatelessWidget {
+  const CounterScreen({super.key});
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final counter = ref.watch(counterProvider); // 相当于 collectAsState
+  Widget build(BuildContext context) {
+    final counter = context.watch<CounterModel>(); // 相当于 collectAsState
     return Column(
       children: [
         Text('当前计数：${counter.count}'),
@@ -161,7 +165,7 @@ class CounterScreen extends ConsumerWidget {
 
 - Compose 的状态是「数据流 + 可观察对象」：StateFlow 自带当前值、去重、订阅，语言级工具齐全；Flutter 的 ChangeNotifier 是手动通知模型，漏调 notifyListeners 就不同步。
 - 临时显示动作：两端都应先判断它代表可恢复状态还是纯 UI 行为，不应默认依赖“只投递一次”的事件总线。
-- 生命周期：collectAsStateWithLifecycle 自动绑定生命周期；Flutter 的 ref.watch 由 Provider 框架管理，手动 listen 仍需自己处理取消与 dispose。
+- 生命周期：collectAsStateWithLifecycle 自动绑定生命周期；provider 包里的 `context.watch` 由框架负责在依赖变化时重建，`ChangeNotifierProvider` 也会 dispose 它创建的 model；但若手动调用 `addListener`，仍需自己 `removeListener`。
 
 记住：两者都是「UI → 方法 → 状态 → 重建/重组」的单向数据流；Compose 把状态做成了 Flow，工具链更完整。
 
@@ -170,26 +174,26 @@ class CounterScreen extends ConsumerWidget {
 - 默认用 Channel 追求“恰好一次” → ViewModel 比 UI 活得久时仍可能丢失，重要结果应归约为 UI State
 - 在 ViewModel 里持有 Compose 引用（Composable、Activity 类型的 Context）→ 泄漏且无法单元测试
 - 把 MutableStateFlow 直接暴露给 UI → UI 可以随意改状态，UDF 被破坏
-- stateIn 忘记 WhileSubscribed → 冷流一直活跃，后台持续拉数据
+- stateIn 忘记 WhileSubscribed → 上游冷流一直活跃，后台持续拉数据
 - 用 collectAsState 而不是 collectAsStateWithLifecycle → 退后台仍在收集
 
 ## 8. 本章检查题
 
-1. StateFlow 与普通 Flow 的区别？
+1. StateFlow 与 `flow { }` 这类冷流 producer 的区别？
 2. 为什么重要的一次性结果不应默认通过 Channel 从 ViewModel 投递？
 3. ViewModel 为什么能在旋转后存活？
 4. stateIn 的 WhileSubscribed 有什么用？
 
 答案：
 
-1. StateFlow 是热流：有当前值可立即读取、相同值不重复发射、多个收集者共享同一数据源；普通 Flow 是冷流，每次收集都重新执行上游。
+1. StateFlow 是热流：独立于收集者存在、有当前值可立即读取、相同值不重复发射、多个收集者共享同一数据源；`flow { }` 这类 builder 以及 Room/DataStore 返回的 Flow 默认是冷流，每个收集者都会重新执行上游。注意 `Flow` 只是接口，本身不描述冷热，`StateFlow` 也是 `Flow` 的实现。
 2. ViewModel 可能在 UI 没有收集者时继续存活，Channel 不能保证 UI 已接收并完成处理；把结果归约到 UI State 后，可以在 UI 恢复时继续处理，并在完成后显式清除。
 3. 旋转属于配置变化，Activity 销毁重建时 ViewModelStore 保留 ViewModel 实例，新 Activity 通过 viewModel() 取回同一个实例。
 4. 指定「没有订阅者后多久停止上游」，避免冷流（网络/DB）在无 UI 消费时继续运行浪费资源。
 
 ## 9. 本章总结
 
-页面级状态用 ViewModel + StateFlow 管理，事件只从 UI 流入、状态只从 ViewModel 流出，形成 UDF 闭环。重要业务结果归约为可恢复的 UI State；纯 UI 行为留在 UI 层；冷流可用 stateIn + WhileSubscribed 托管。不要把 Channel 当作“一次性事件”的万能答案。
+页面级状态用 ViewModel + StateFlow 管理，事件只从 UI 流入、状态只从 ViewModel 流出，形成 UDF 闭环。重要业务结果归约为可恢复的 UI State；纯 UI 行为留在 UI 层；`flow { }` 这类冷流可用 stateIn + WhileSubscribed 托管。不要把 Channel 当作“一次性事件”的万能答案。
 
 官方参考：
 

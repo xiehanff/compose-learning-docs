@@ -41,6 +41,8 @@ Scaffold(
 
 项目先让列表（`LazyColumn`，第 16 章详解）填满内容槽，再执行 `.padding(padding)`。因此列表真正可用的区域会避开标题栏。若忽略这个 padding，第一条内容通常会绘制在 TopAppBar 后面。这里的 `padding` 不是随便命名的普通数值，而是包含 start、top、end、bottom 四个方向的信息。
 
+需要提前纠正一个常见误解：`Scaffold` 只负责把这份 `PaddingValues` 算出来交给你，它**不会自己应用到内容上**，是否 `padding(padding)` 完全由你决定（相应官方描述是 "Scaffold does not apply the insets to content; this responsibility is yours."）。`Scaffold` 的 `contentWindowInsets` 默认也不等于 `safeDrawing`，而是来自 `ScaffoldDefaults.contentWindowInsets`（系统栏类 insets）；某个方向有对应的 `topBar` / `bottomBar` 时，该方向的 insets 由栏自己处理。这些细节在第 78 章展开。
+
 另外，`TopAppBar` 在本项目使用的 Material3 版本中仍标注为实验 API，使用时需要给所在函数加 `@OptIn(ExperimentalMaterial3Api::class)`（本项目的 `ComponentDetailScreen.kt`、`ScaffoldDemo.kt` 都写了）。
 
 ### 4.1 innerPadding 与嵌套 Scaffold 的系统栏边距（WindowInsets）
@@ -76,7 +78,9 @@ Scaffold(
 
 1. `TopAppBar` 和示例里的 `NavigationBar` 默认会把系统栏（状态栏、导航条）占用的高度算进自己的边距，这在「页面最外层」的 Scaffold 上是对的。
 2. 当 Scaffold 被嵌进固定高度容器、而外层详情页已经处理过一次系统栏时，这两条系统栏边距会重复叠加：顶栏被额外撑高、底栏下方多出一段空白。因此示例显式传入 `windowInsets = WindowInsets(0, 0, 0, 0)` 把它们清零。这里的 `WindowInsets(0, 0, 0, 0)` 是构造一个四边都为 0 的 `WindowInsets` 对象，表示「这里不再需要额外避让」。
-3. 清零的是「槽位组件自己的系统栏边距」，不影响 Scaffold 传给内容区的 `innerPadding`——内容区依然必须执行 `.padding(innerPadding)`，否则会被 topBar 和 bottomBar 压住。换句话说：`innerPadding` 负责「避开同页的栏」，槽位的 `windowInsets` 负责「避免重复计算系统栏」，两者不是同一件事，不能互相替代。
+3. 清零的是「槽位组件自己的系统栏边距」，不影响 Scaffold 传给内容区的 `innerPadding`——内容区依然必须执行 `.padding(innerPadding)`，否则会被 topBar 和 bottomBar 压住。另外要注意：`Scaffold` 并**不「自动」把 insets 应用到内容上**，它只是把算好的 `PaddingValues` 交给你，由内容根自己决定如何应用（这也是「写了 `Scaffold { padding -> }` 却没用 padding」会成为常见错误的原因）。换句话说：`innerPadding` 负责「避开同页的栏」，槽位的 `windowInsets` 负责「避免重复计算系统栏」，两者不是同一件事，不能互相替代。
+
+   如果内容里还有会再次读 insets 的子布局（例如嵌套 Scaffold、带 `imePadding` 的输入区），在内容根再加一句 `.consumeWindowInsets(innerPadding)` 声明「这份 insets 已经用掉了」即可，避免重复叠加。完整原理与写法见第 78 章。
 
 因此，`Scaffold` 在页面最外层时通常保持默认即可；只有当它被嵌套进另一个已处理系统栏的容器里时，才需要给 `TopAppBar` / `NavigationBar` 清零 `windowInsets`。
 
@@ -111,6 +115,8 @@ Scaffold(
 - 忘记给 `TopAppBar` 加 `@OptIn(ExperimentalMaterial3Api::class)`，编译报实验性 API 错误
 - 把 Scaffold 嵌进固定高度容器时，忘了给 `TopAppBar` / `NavigationBar` 传 `windowInsets = WindowInsets(0, 0, 0, 0)`，导致顶栏被系统栏边距再次撑高、底栏下方多出空白
 - 反过来，把「清零槽位 windowInsets」当成可以省掉内容区 `.padding(innerPadding)` 的理由
+- 以为 `Scaffold` 会自动把 insets 应用到内容上（它只把 `PaddingValues` 交给你）
+- 用了 `.padding(innerPadding)` 却忘了 `.consumeWindowInsets(innerPadding)`，内层再读 insets 时重复叠加（详见第 78 章）
 
 ## 8. 本章检查题
 
@@ -128,4 +134,4 @@ Scaffold(
 
 ## 9. 本章总结
 
-`Scaffold` 负责页面槽位和安全空间的协调；`TopAppBar` 是顶部栏内容；内容 Lambda 接收的 `PaddingValues` 必须由具体内容消费。
+`Scaffold` 负责页面槽位间的空间协调，并把 insets 算成 `PaddingValues` 交给内容；它**不会自己应用这些 insets**，所以内容 Lambda 接收的 `PaddingValues` 必须由具体内容消费（必要时再配 `consumeWindowInsets`，见第 78 章）。

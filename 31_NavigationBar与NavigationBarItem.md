@@ -19,6 +19,10 @@
 
 ## 3. 项目源码片段
 
+<!-- compile
+prelude: class NavItem(val icon: ImageVector, val label: String)
+prelude: val items = listOf(NavItem(Icons.Filled.Home, "首页"), NavItem(Icons.Filled.Search, "搜索"))
+-->
 ```kotlin
 var selectedIndex by remember { mutableIntStateOf(0) }
 

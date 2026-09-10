@@ -87,7 +87,7 @@ fun HomeScreen(viewModel: MainViewModel = hiltViewModel()) {
 
 Hilt 是 Dagger 在 Android 上的封装。它在编译期扫描 @Module、@Inject、@HiltViewModel 等注解，生成依赖图代码，运行时无反射。这意味着依赖缺失、循环依赖、重复提供等错误在**编译期**就能暴露，而不是运行到那一步才崩。
 
-入口三件套缺一不可：`@HiltAndroidApp` 标记 Application，生成全局组件；`@AndroidEntryPoint` 标记 Activity/Fragment，生成注入入口；`@Inject constructor` 声明「我要什么依赖」。漏掉任何一个，Hilt 都不知道从哪下手，运行时会直接崩溃。
+入口三件套是常见组合，但并不是唯一方式：`@HiltAndroidApp` 标记 Application，生成全局组件；`@AndroidEntryPoint` 标记 Activity/Fragment，生成注入入口；`@Inject constructor` 声明「我要什么依赖」。依赖同样可以由 `@Provides` / `@Binds` 在 `@Module` 里提供，很多类不需要（也不应该）在构造函数上标 `@Inject`。Hilt/Dagger 在编译期生成并校验依赖图，大部分「图不完整」的配置错误（例如缺少绑定）在编译期就会报错，不是都要等到运行期；会表现到运行期的主要是入口注解缺失一类问题，例如漏掉 `@AndroidEntryPoint`（正确报错样例见第 7 节）。
 
 `@HiltViewModel` 与 `@Inject constructor` 是 ViewModel 注入的一对组合：前者标记「这个 ViewModel 由 Hilt 创建」，后者声明构造参数由 Hilt 提供，两者配合生成 ViewModelFactory。在 Navigation Compose 目的地中搭配 `hiltViewModel()`，无需手写工厂代码，且 ViewModel 会按当前导航返回栈条目确定作用域。
 
@@ -95,7 +95,7 @@ Hilt 是 Dagger 在 Android 上的封装。它在编译期扫描 @Module、@Inje
 
 作用域注解决定实例存活时长：`@Singleton` 应用级唯一，`@ActivityRetainedScoped` 随 Activity 重建保留，`@ActivityScoped` 随 Activity 销毁。不加作用域时每次注入都 new 新实例，加了才能复用。
 
-记住：@HiltAndroidApp 管 Application，@AndroidEntryPoint 管入口类，@HiltViewModel + @Inject constructor 管 ViewModel，@Module + @Provides/@Binds 管依赖怎么造，作用域管造几个。
+记住：@HiltAndroidApp 管 Application，@AndroidEntryPoint 管入口类，@HiltViewModel + @Inject constructor 是 ViewModel 注入的常见写法（依赖也可以由模块提供），@Module + @Provides/@Binds 管依赖怎么造，作用域管造几个。
 
 ## 5. 实际执行过程
 
@@ -144,7 +144,7 @@ Riverpod 的 ProviderContainer 也承担类似职责（依赖 + 作用域 + 生�
 ## 7. 常见错误
 
 - 忘记 @AndroidEntryPoint → 运行时崩溃，报「has not been annotated with @AndroidEntryPoint」，深链接（deeplink）启动的 Activity 最容易踩
-- @HiltViewModel 与 @Inject constructor 缺一不可 → 缺一个 Hilt 就不知道如何创建 ViewModel
+- @HiltViewModel 与 @Inject constructor 是 ViewModel 注入的常见搭配，但不是唯一方式 → 依赖同样可以由 @Module 里的 @Provides/@Binds 提供，@HiltViewModel 负责让 Hilt 接管 ViewModel 的创建
 - 宿主没有正确接入 Hilt 却调用 hiltViewModel() → 无法取得 Hilt ViewModelFactory
 - 两个模块重复提供同一类型（比如两个 @Provides Retrofit）→ 编译期报错，注意 @InstallIn 作用域不同也会冲突
 - 忘加 KSP/KAPT 或 Hilt Gradle 插件 → 通常在生成代码或编译阶段报缺失类型/配置错误，应先检查具体失败任务
@@ -165,4 +165,4 @@ Riverpod 的 ProviderContainer 也承担类似职责（依赖 + 作用域 + 生�
 
 ## 9. 本章总结
 
-Hilt 把「谁依赖谁、谁造谁」集中到编译期声明的依赖图里。配置记住三件套：@HiltAndroidApp、@AndroidEntryPoint、@HiltViewModel + @Inject constructor；提供依赖用 @Module + @Provides/@Binds，再用作用域注解控制实例存活时长。
+Hilt 把「谁依赖谁、谁造谁」集中到编译期声明的依赖图里。常用配置是 @HiltAndroidApp、@AndroidEntryPoint、@HiltViewModel + @Inject constructor 这一组入口注解，依赖的提供与绑定交给 @Module + @Provides/@Binds，再用作用域注解控制实例存活时长。

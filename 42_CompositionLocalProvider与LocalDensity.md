@@ -8,6 +8,7 @@
 
 - 读取 LocalDensity.current
 - 用 CompositionLocalProvider 覆盖值
+- 分清提供端的 `provides` 与读取端的 `.current`（例如项目的 `LocalDemoTheme.current`，第 3 章）
 - 理解最近 Provider 原则
 - 区分环境依赖与业务参数
 
@@ -21,6 +22,7 @@
 ## 3. 项目源码片段
 
 ```kotlin
+// 提供（Theme.kt，第 3 章）：把 demoTheme 挂到子树上
 CompositionLocalProvider(
     LocalDensity provides designDensity,
 ) {
@@ -32,13 +34,17 @@ CompositionLocalProvider(
 ) {
     MaterialTheme(content = content)
 }
+
+// 读取（HomeScreen.kt）：拿到最近一层提供的值，只在本子树内有效
+val demoTheme = LocalDemoTheme.current
+fontSize = demoTheme.listItemTextPx.pxSp()
 ```
 
 ## 4. 逐步解释
 
-CompositionLocal 是沿组合树向下传播的环境值。子节点读取 LocalDensity.current 时，会找到离自己最近的 Provider；父节点和兄弟子树不受内部覆盖影响。离开 Provider 范围后恢复外层值。
+CompositionLocal 是沿组合树向下传播的环境值。子节点读取 LocalDensity.current 时，会找到离自己最近的 Provider；父节点和兄弟子树不受内部覆盖影响。离开 Provider 范围后恢复外层值。提供端用 `provides` 挂值，读取端用 `.current` 取最近一层的值，两边的名字必须对应。
 
-项目同样用 LocalDemoTheme 提供 Demo 尺寸配置。此机制适合主题、密度、语言等跨大量层级的环境信息，但会形成隐式依赖，不应取代所有明确业务参数。它也不是修改设备或线程的全局 density。
+项目同样用 LocalDemoTheme 提供 Demo 尺寸配置（第 3 章）：子组件写 `val demoTheme = LocalDemoTheme.current`，拿到的是最近一层 `LocalDemoTheme provides ...` 提供的 `DemoThemeConfig`。此机制适合主题、密度、语言等跨大量层级的环境信息，但会形成隐式依赖，不应取代所有明确业务参数。它也不是修改设备或线程的全局 density。
 
 ## 5. 实际执行过程
 
@@ -73,12 +79,14 @@ MediaQuery(
 1. LocalDensity.current 如何选择值？
 2. Provider 会影响父节点吗？
 3. 哪些信息适合 CompositionLocal？
+4. `LocalDemoTheme.current` 能读到什么？它和 `provides` 是什么关系？
 
 答案：
 
 1. 读取时沿组合树向上找最近的 Provider，找到即用它提供的值。
 2. 不会。Provider 只影响它内部的子树，父节点和兄弟子树不受影响，离开范围后恢复外层值。
 3. 主题、密度、语言等需要跨大量层级传递的环境信息；不适合替代所有明确的业务参数。
+4. 读到最近一层 `LocalDemoTheme provides ...` 提供的 `DemoThemeConfig`（第 3 章里 `DemoTheme` 提供、`HomeScreen` 读取）；`.current` 是读取端，`provides` 是提供端，两者靠同一个 `CompositionLocal` 对象对应，缺了 Provider 就只能拿到默认值。
 
 ## 9. 本章总结
 

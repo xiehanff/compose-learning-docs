@@ -21,6 +21,9 @@
 
 ## 3. 项目源码片段
 
+<!-- compile
+prelude: var liked by remember { mutableStateOf(false) }
+-->
 ```kotlin
 // components/ButtonDemo.kt：五种风格按钮，按视觉权重从高到低排列
 Button(onClick = {}) { Text("Button（Filled）→ 主操作") }              // 主操作，视觉权重最高
@@ -42,9 +45,10 @@ IconButton(onClick = { liked = !liked }) {
     )
 }
 
-// 项目其它位置（详情页返回键）
+// 项目其它位置（详情页返回键）。返回箭头要用 AutoMirrored 版本：
+// Icons.Filled.ArrowBack 已弃用，RTL 语言下它不会自动镜像
 IconButton(onClick = onBack) {
-    Icon(Icons.Filled.ArrowBack, contentDescription = "返回")
+    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
 }
 ```
 

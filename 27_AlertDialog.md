@@ -19,6 +19,9 @@
 
 ## 3. 项目源码片段
 
+<!-- compile
+prelude: var showDialog by remember { mutableStateOf(false) }
+-->
 ```kotlin
 if (showDialog) {
     AlertDialog(

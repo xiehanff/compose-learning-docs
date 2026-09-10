@@ -13,7 +13,8 @@
 
 进阶篇不再局限于 compose_demo 项目，本章使用通用 Compose API。
 
-- `androidx.compose.material3`：MaterialTheme、lightColorScheme / darkColorScheme、dynamicLightColorScheme / dynamicDarkColorScheme、isDynamicColorEnabled、Shapes、Typography
+- `androidx.compose.material3`：MaterialTheme、lightColorScheme / darkColorScheme、dynamicLightColorScheme / dynamicDarkColorScheme、Shapes、Typography
+- `android.os.Build`：动态取色要先判 `VERSION.SDK_INT >= VERSION_CODES.S`
 - `androidx.compose.ui.graphics.Color`、`androidx.compose.foundation.shape.RoundedCornerShape`
 - `androidx.compose.ui.text.TextStyle`、`FontFamily`、`Font`
 - `androidx.compose.foundation.isSystemInDarkTheme`
@@ -31,9 +32,9 @@ fun AppTheme(
 ) {
     val context = LocalContext.current
     val colorScheme = when {
-        // Android 12+ 且系统开启动态取色：从壁纸提取色板
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-            isDynamicColorEnabled() ->
+        // Android 12+（API 31+）：从壁纸提取色板。dynamicColor 是应用自己的开关，
+        // material3 没有「系统是否开启动态取色」这类查询 API，所以判断条件只有这两个
+        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
             if (darkTheme) dynamicDarkColorScheme(context)
             else dynamicLightColorScheme(context)
         darkTheme -> darkColorScheme(primary = Color(0xFF90CAF9))
@@ -74,7 +75,7 @@ val AppTypography = Typography(
 
 2. 全量定制 vs 局部覆盖：lightColorScheme() 与 darkColorScheme() 已提供 Material 规范的默认值，你只需覆盖想改的槽位（如 primary、secondaryContainer）。切忌从零手写全部 20 多个颜色槽——容易漏掉 tertiary、surfaceVariant 等导致组件配色不协调。记住：先默认，再覆盖。
 
-3. 动态取色与降级：dynamicLightColorScheme(context) / dynamicDarkColorScheme(context) 从系统壁纸提取 Material You 色板。这是 Android 12（API 31）才有的能力，必须先判 SDK 版本再调用；isDynamicColorEnabled() 进一步检查系统设置是否开启，两者都满足才走动态分支，否则降级到普通 light/dark 色板。
+3. 动态取色与降级：dynamicLightColorScheme(context) / dynamicDarkColorScheme(context) 从系统壁纸提取 Material You 色板。这是 Android 12（API 31）才有的能力，必须先判 SDK 版本再调用；条件满足就走动态分支，否则降级到普通 light/dark 色板。material3 没有提供「系统是否开启动态取色」的查询 API（`isDynamicColorEnabled()` 并不存在），所以条件就是「应用自己的 dynamicColor 开关 + `SDK_INT >= S`」，第 3 章的 `DemoTheme` 也是这样写的。
 
 4. Shapes 体系：Shapes 定义 extraSmall / small / medium / large / extraLarge 五个圆角槽位。Material 3 规范中，FloatingActionButton 用 extraLarge，Card、Dialog 用 medium，Chip 等小控件用 small……组件按角色取对应圆角，整体视觉自然统一。自定义时只给要改的槽位传值，未指定的沿用默认。
 
@@ -136,7 +137,7 @@ MaterialApp(theme: theme, darkTheme: theme.copyWith(brightness: Brightness.dark)
 答案：
 
 1. colorScheme、typography、shapes。Button 的背景与文字色来自 colorScheme（primary / onPrimary），圆角来自 shapes（small / medium 等），文字样式来自 typography。
-2. 先判断 Build.VERSION.SDK_INT >= S 且 isDynamicColorEnabled() 为真，不满足就走 lightColorScheme / darkColorScheme 分支，绝不在低版本调用 dynamic*ColorScheme。
+2. 先判断应用自己的 dynamicColor 开关与 `Build.VERSION.SDK_INT >= S`，不满足就走 lightColorScheme / darkColorScheme 分支，绝不在低版本调用 dynamic*ColorScheme（material3 没有「系统是否开启动态取色」的查询 API）。
 3. 按 Material 3 规范，Chip 等小控件用 small，Card、Dialog 用 medium，BottomSheet、Drawer 等大容器用 large，FloatingActionButton 用 extraLarge。
 4. 因为手写 20 多个颜色槽极易遗漏或配错，导致组件间风格不一致；基于默认值覆盖差异，既符合规范，又只需关心业务需要改的槽位。
 

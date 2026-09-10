@@ -28,9 +28,33 @@ class MainActivity : ComponentActivity() {
 }
 ```
 
+先不要被 `setContent` 里面的三层嵌套吓到。本章会先用一个最小示例把主线走通：
+
+```kotlin
+setContent {
+    Text("Hello Compose")
+}
+```
+
+理解清楚之后，再回来看项目真实入口里的这几层包装分别是什么。
+
 本章先回答一个最基础的问题：
 
-> Android 启动应用后，为什么最终会显示 `DemoApp()`？
+> Android 启动应用后，界面是怎么从 Activity 一路走到 Composable 的？
+
+主线可以简化成：
+
+```text
+Android 系统
+   ↓
+MainActivity（Activity）
+   ↓
+onCreate
+   ↓
+setContent
+   ↓
+Composable 内容
+```
 
 ---
 
@@ -114,9 +138,9 @@ Android 系统
    ↓ 创建
 MainActivity
    ↓ 调用 setContent
-Compose UI
-   ↓ 执行
-DemoApp()
+Compose 根内容（Composable）
+   ↓ 组合出
+界面
 ```
 
 ---
@@ -170,7 +194,18 @@ super.onCreate(savedInstanceState)
 
 > 先让父类完成 Activity 自身的创建初始化。
 
-这里的 `super` 指 `ComponentActivity` 的父类实现。
+这里的 `super` 指**当前类 `MainActivity` 的直接父类**，也就是 `ComponentActivity`。
+
+所以：
+
+```text
+MainActivity 的直接父类 = ComponentActivity
+super.onCreate(savedInstanceState)
+    ↓ 实际调用
+ComponentActivity 中的 onCreate(savedInstanceState) 实现
+```
+
+也就是说，`super.onCreate(...)` 调用的是 `ComponentActivity.onCreate(...)` 这个实现，而不是更上层某个类的实现，也不是 `MainActivity` 自己的 `onCreate`。
 
 通常不要删除，也不要随意放到很后面。否则 Activity、SavedState、生命周期或其他基础设施可能不能正确初始化。
 
@@ -191,21 +226,27 @@ void initState() {
 
 ## 6. `setContent` 在干什么
 
-项目代码：
+先用最小示例：
 
 ```kotlin
 setContent {
-    DesignWidthScale {
-        DemoTheme {
-            DemoApp()
-        }
-    }
+    Text("Hello Compose")
 }
 ```
 
 `setContent` 的作用可以先理解为：
 
 > 把大括号中的 Compose UI 设置为当前 Activity 的界面内容。
+
+逐段看这段代码：
+
+```text
+setContent            从 Android Activity 进入 Compose
+大括号内容             这段内容负责构建界面
+Text("Hello Compose")  一个最简单的 Composable：显示一行文字
+```
+
+`Text` 是 Compose 最基础的文字组件（第 11 章会详细讲它的其他参数）。本章只需要把它理解成“显示一行文字的 Composable”。
 
 传统 Android 页面经常使用 XML：
 
@@ -217,7 +258,7 @@ Compose 改为：
 
 ```kotlin
 setContent {
-    DemoApp()
+    Text("Hello Compose")
 }
 ```
 
@@ -240,23 +281,27 @@ content: @Composable () -> Unit
 
 - `()`：这个函数不需要参数
 - `Unit`：这个函数不返回业务结果
-- `@Composable`：函数内部允许构建 Compose UI
+- `@Composable`：这个函数是 Compose 的 UI 内容，可以在其中构建界面
 
 所以：
 
 ```kotlin
 setContent {
-    DemoApp()
+    Text("Hello Compose")
 }
 ```
 
-等于把一个“负责构建 UI 的函数”交给 `setContent`。
+等于把一个“负责构建 UI 的函数”交给 `setContent`，由它把这个函数产生的界面挂到当前 Activity 上。
+
+注意：`setContent` 的大括号里放几层包装、放哪些组件，是每个工程自己的选择，不影响 `setContent` 的含义。给它一个 Composable 内容，它就把这份内容装进 Activity。
 
 第 2 章会单独讲清楚 `@Composable`。
 
 ---
 
-## 7. 三层嵌套在做什么
+## 7. 项目真实入口长什么样（本阶段先当黑盒）
+
+回到项目代码：
 
 ```kotlin
 setContent {
@@ -268,7 +313,13 @@ setContent {
 }
 ```
 
-从外向内：
+先明确一件事：
+
+> 这是 **compose_demo 这个 demo 工程自己的启动写法，不是 Compose 的用法标准**。
+
+Compose 只要求 `setContent` 的大括号里是 Composable 内容。里面套三层还是零层，套的是什么，属于工程组织方式。上面这段代码和最小示例 `setContent { Text("Hello Compose") }` 相比，对 `setContent` 本身来说没有区别。
+
+从外向内看：
 
 ```text
 setContent
@@ -277,21 +328,21 @@ setContent
         └── DemoApp
 ```
 
-### 第一层：`setContent`
+本阶段只需要知道“谁包住了谁”，各层的含义如下：
 
-把 Compose UI 放进 Activity。
+### `DesignWidthScale`
 
-### 第二层：`DesignWidthScale`
+项目自定义的设计稿适配策略（按设计稿宽度等比换算尺寸，让同一套数值在各分辨率上保持比例）。
 
-向内部子树提供项目自定义的设计稿尺寸换算环境（设计稿适配指按设计稿宽度等比换算尺寸，让同一套数值在各分辨率上保持比例，第 43 章详解）。
+本阶段把它当**黑盒**：只知道它包住了内容。它具体改变了子树的什么、有没有风险，第 41—45 章会专门分析它的实现与风险。
 
-### 第三层：`DemoTheme`
+### `DemoTheme`
 
-向内部子树提供颜色、字体和自定义 Demo 尺寸配置（第 3 章详解）。
+项目的主题包装，负责向内部提供颜色、字体等配置。第 3 章详解。
 
-### 最内层：`DemoApp`
+### `DemoApp`
 
-构建应用导航和真正页面。
+应用真正的 UI 根内容，负责组织导航和页面。第 2 章先认识 Composable 函数，第 4 章再讲导航。
 
 关键理解：
 
@@ -313,6 +364,10 @@ void main() {
 ```
 
 这里只是概念对照，不是完全一一对应。
+
+最后再强调一次：
+
+> 这三层是 compose_demo 的组织方式，不是理解 `setContent` 的前提。理解 `setContent`，只需要第 6 节那个最小示例。
 
 ---
 
@@ -359,21 +414,28 @@ Compose UI             → setContent 内的 Composable 代码
 
 ## 9. 完整启动过程
 
-应用启动后的实际主链路可以简化为：
+先看任何 Compose 应用都一样的必要主线：
 
 ```text
 1. 用户点击应用图标
 2. Android 根据 Manifest 找到 MainActivity
 3. Android 创建 MainActivity
 4. Android 调用 MainActivity.onCreate(...)
-5. super.onCreate(...) 初始化 Activity
+5. super.onCreate(...) 让直接父类 ComponentActivity 完成 Activity 初始化
 6. configStatusBar() 配置系统窗口
-7. setContent { ... } 安装 Compose UI
-8. DesignWidthScale 建立尺寸环境
-9. DemoTheme 建立主题环境
-10. DemoApp() 构建导航图
-11. NavHost 根据 startDestination 显示 HomeScreen
+7. setContent { ... } 把大括号中的 Composable 内容挂到 Activity 上
 ```
+
+`compose_demo` 在第 7 步的内容里，又加了自己的结构：
+
+```text
+8.  DesignWidthScale 建立尺寸环境（本阶段当黑盒，第 41—45 章）
+9.  DemoTheme 建立主题环境（第 3 章）
+10. DemoApp() 构建导航图（第 4 章）
+11. NavHost 根据 startDestination 显示 HomeScreen（第 4 章）
+```
+
+也就是说，第 8 步之后的内容属于这个工程的选择，不属于 `setContent` 的语义。
 
 因此，`MainActivity` 并没有直接把 `HomeScreen` 写死在页面上。
 
@@ -412,7 +474,7 @@ class MainActivity : ComponentActivity() {
 | `onCreate` | 应用原生页面创建时机 |
 | `setContent` | 在宿主中安装根 UI |
 | `DemoApp()` | `MyApp` 根 Widget |
-| `DemoTheme` | `Theme` / `MaterialApp.theme` |
+| `DemoTheme`（项目自定义包装） | `Theme` / `MaterialApp.theme` |
 
 不能简单认为：
 
@@ -448,11 +510,19 @@ setContent { ... }
 
 `Text` 需要在 Composable 环境中调用。
 
-### 错误 3：认为 `setContent` 只执行一次，所以内部代码都可以随便产生副作用
+### 错误 3：认为 `setContent` 的大括号只执行一次，所以里面可以随便写网络请求
 
-Composable 内容可能发生重组（指状态变化后，Compose 重新执行「读取过该状态」的 Composable 函数，用新值重新生成这部分界面，第 22 章详解）。网络请求、写文件等副作用（指组合函数体之外、会对外部世界产生影响的操作，第 25 章详解）不应该因为函数重新执行而重复触发。
+```kotlin
+setContent {
+    // 不推荐：这段内容可能被反复执行
+    requestApi()
+    Text("页面")
+}
+```
 
-这个问题会在第 25 章专门说明。
+Composable 内容不是“只会执行一次的初始化代码”。当它依赖的数据发生变化时，Compose 会重新执行相关的 Composable 函数，用新数据重新生成这部分界面（这个机制叫「重组」，第 22 章详解）。
+
+因此网络请求、写文件、弹提示这类会对外部世界产生影响的操作，不应该直接写在 Composable 函数体里，否则可能被重复触发。这个问题会在第 25 章专门说明。
 
 ### 错误 4：把所有业务逻辑都堆进 `MainActivity`
 
@@ -464,22 +534,26 @@ Composable 内容可能发生重组（指状态变化后，Compose 重新执行�
 
 页面 UI 和业务逻辑应该继续拆分。
 
+### 错误 5：把 demo 工程的三层包装当成 Compose 的规定写法
+
+`DesignWidthScale`、`DemoTheme` 都是这个工程的包装层。`setContent` 只要求大括号里是 Composable 内容，写成 `setContent { Text("Hello Compose") }` 同样正确。
+
 ---
 
 ## 12. 本章检查题
 
 1. `MainActivity` 是 Composable 吗？
 2. `setContent` 的大括号中允许调用什么类型的函数？
-3. `super.onCreate(savedInstanceState)` 的作用是什么？
-4. `DemoApp()` 为什么要放在 `DemoTheme` 内层？
+3. `super.onCreate(savedInstanceState)` 调用的到底是哪个类里的实现？
+4. 项目入口里的 `DesignWidthScale` 和 `DemoTheme`，本阶段应该怎么理解？
 5. `configStatusBar()` 修改的是 Compose 组件，还是 Android Window？
 
 答案：
 
 1. 不是，它是 Android Activity。
 2. Composable 内容。
-3. 让父类完成 Activity 必需的初始化。
-4. 让 `DemoApp` 及其子树能够读取主题配置。
+3. 当前类 `MainActivity` 的直接父类 `ComponentActivity` 里的 `onCreate(...)` 实现。
+4. 都先当作项目自己的包装：`DesignWidthScale` 是黑盒，只看它包住了内容，第 41—45 章再分析；`DemoTheme` 是主题包装，第 3 章讲。它们都不用来解释 `setContent`。
 5. Android Window。
 
 ---
@@ -493,13 +567,15 @@ Android 创建 MainActivity
         ↓
 onCreate
         ↓
+super.onCreate(...) 让直接父类 ComponentActivity 完成初始化
+        ↓
 setContent
         ↓
-Composable 根内容
+Composable 根内容（最小示例：Text("Hello Compose")）
         ↓
-DemoApp
+项目自己的包装：DesignWidthScale → DemoTheme → DemoApp
 ```
 
 一句话概括：
 
-> `MainActivity` 是 Android 提供的页面宿主，`setContent` 是从 Android Activity 进入 Compose UI 世界的入口。
+> `MainActivity` 是 Android 提供的页面宿主，`setContent` 是从 Android Activity 进入 Compose UI 世界的入口；`setContent` 里面包几层，是工程选择，不是 Compose 的规定。

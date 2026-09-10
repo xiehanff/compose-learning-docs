@@ -1,0 +1,37 @@
+# 版本对齐本地可构建的 compose_demo 工程（/Users/hax/Documents/GitHub/compose_demo）。
+[versions]
+agp = "8.6.1"
+kotlin = "2.3.21"
+composeBom = "2026.06.00"
+lifecycleRuntimeKtx = "2.6.1"
+# 第 26A 章的输入过滤用 androidx.core.text.isDigitsOnly（官方样例同款），显式声明，不依赖传递依赖。
+coreKtx = "1.17.0"
+# 第 71A 章 Navigation 3 示例用到的依赖，版本与章节里的依赖清单保持一致。
+nav3Core = "1.1.4"
+lifecycleViewmodelNav3 = "2.11.0"
+kotlinxSerializationCore = "1.9.0"
+
+[libraries]
+androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycleRuntimeKtx" }
+androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
+androidx-ui = { group = "androidx.compose.ui", name = "ui" }
+androidx-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics" }
+androidx-foundation = { group = "androidx.compose.foundation", name = "foundation" }
+androidx-runtime = { group = "androidx.compose.runtime", name = "runtime" }
+androidx-animation = { group = "androidx.compose.animation", name = "animation" }
+androidx-material3 = { group = "androidx.compose.material3", name = "material3" }
+# 章节示例广泛使用 Icons.Filled.*（第 26 章等）；material3 1.4 起不再传递依赖图标库，需显式引入。
+androidx-icons-core = { group = "androidx.compose.material", name = "material-icons-core" }
+androidx-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
+androidx-navigation3-runtime = { module = "androidx.navigation3:navigation3-runtime", version.ref = "nav3Core" }
+androidx-navigation3-ui = { module = "androidx.navigation3:navigation3-ui", version.ref = "nav3Core" }
+androidx-lifecycle-viewmodel-navigation3 = { module = "androidx.lifecycle:lifecycle-viewmodel-navigation3", version.ref = "lifecycleViewmodelNav3" }
+kotlinx-serialization-core = { module = "org.jetbrains.kotlinx:kotlinx-serialization-core", version.ref = "kotlinxSerializationCore" }
+
+[plugins]
+androidLibrary = { id = "com.android.library", version.ref = "agp" }
+jetbrainsKotlinAndroid = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+composeCompiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+# 序列化插件版本必须与 Kotlin 插件一致（第 71A 章的 @Serializable key 需要它）。
+jetbrainsKotlinSerialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }

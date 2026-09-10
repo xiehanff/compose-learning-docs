@@ -20,6 +20,7 @@
 
 ## 3. 项目源码片段
 
+<!-- compile -->
 ```kotlin
 Box(
     modifier = Modifier

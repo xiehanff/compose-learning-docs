@@ -8,7 +8,7 @@
 
 - 用 `buildAnnotatedString` 构造一个文本、多种样式的富文本
 - 区分 `SpanStyle`（字符级）与 `ParagraphStyle`（段落级）的职责
-- 用 `ClickableText` 配合 `LinkAnnotation` 实现局部文字点击
+- 用 `withLink` 配合 `LinkAnnotation` 实现局部文字点击
 - 知道 `AnnotatedString` 的不可变性与合并方式
 
 ## 2. 项目中的位置
@@ -19,12 +19,13 @@
 - `androidx.compose.ui.text.buildAnnotatedString`
 - `androidx.compose.ui.text.SpanStyle` / `ParagraphStyle`
 - `androidx.compose.ui.text.LinkAnnotation`
-- `androidx.compose.foundation.text.ClickableText`
+- `androidx.compose.ui.text.withLink`（`buildAnnotatedString` 的作用域函数，给一段文字挂链接）
 
 ## 3. 项目源码片段
 
 场景：登录页的《用户协议》文案——「重要提示」红色加粗，旧版条款加删除线，「完整协议」可点击跳转。
 
+<!-- compile -->
 ```kotlin
 @Composable
 fun RichTextDemo() {
@@ -37,9 +38,8 @@ fun RichTextDemo() {
             append("2023 版")
         }
         append(" 起生效。查看")
-        withStyle(
-            style = SpanStyle(color = Color(0xFF3F6FF6)),
-            link = LinkAnnotation.Url(
+        withLink(
+            LinkAnnotation.Url(
                 url = "https://example.com/agreement",
                 styles = TextLinkStyles(
                     style = SpanStyle(textDecoration = TextDecoration.Underline),
@@ -50,14 +50,8 @@ fun RichTextDemo() {
         }
     }
 
-    ClickableText(
-        text = agreement,
-        onClick = { offset ->
-            agreement.getLinkAnnotations(offset, offset).forEach { range ->
-                val url = (range.item as LinkAnnotation.Url).url
-                // 这里用 UriHandler / Intent 打开链接
-            }
-        },
+    Text(
+        text = agreement, // LinkAnnotation.Url 的点击由 Text 自动处理（默认走 LocalUriHandler）
     )
 }
 ```
@@ -72,18 +66,18 @@ fun RichTextDemo() {
 
 `AnnotatedString` 是不可变的。需要组合两段富文本时用 `+` 运算符合并（内部会做偏移拼接），要改样式只能重新 build 或合并，不能原地修改。
 
-可点击文字：`ClickableText` 的 `onClick` 回调会返回被点击位置的字符偏移 `offset`，配合 `text.getLinkAnnotations(offset, offset)` 查找该偏移处命中的 `LinkAnnotation`，取到 Url 后执行跳转。跳转本身（UriHandler、Intent）由业务层决定，Compose 只负责把「点击位置」翻译成「文本偏移」。
+可点击文字：在 `buildAnnotatedString` 里用 `withLink(LinkAnnotation.Url(...)) { ... }` 把一段文字标记为链接。`LinkAnnotation.Url` 的点击**由 `Text` 自动处理**（默认走 `LocalUriHandler`）；如果需要自己接管（例如弹确认框、自定义路由），再用 `onClick` 或 `LinkAnnotation.Clickable`。跳转本身（UriHandler、Intent）由业务层决定，Compose 负责把「点击位置」翻译成「链接标记」。
 
 顺带一提：TextField 的 `VisualTransformation` 与 AnnotatedString 关系密切——`PasswordVisualTransformation` 就是把输入文本重写成一个 `AnnotatedString` 再交给绘制层，可见富文本机制是文本渲染的基础设施。
 
-记住：**富文本 = 文本 + 样式区间 + 链接区间，用 buildAnnotatedString 声明，用 ClickableText 交互。**
+记住：**富文本 = 文本 + 样式区间 + 链接区间，用 `buildAnnotatedString` 声明样式与链接，用 `Text` 直接渲染。**
 
 ## 5. 实际执行过程
 
 1. 组合阶段执行 `buildAnnotatedString`，生成 text 与带偏移的样式/链接区间
 2. Text 布局阶段按 Range 把文本拆成多个文本块，分别测量
 3. 绘制阶段逐块应用字体、颜色、装饰，输出整段文字
-4. 用户点击文字，ClickableText 把点击坐标映射为字符偏移 offset
+4. 用户点击文字，`Text` 的内部点击处理把坐标映射到链接区间，取出 `LinkAnnotation`
 5. `getLinkAnnotations(offset, offset)` 查命中链接，回调中执行跳转
 
 ## 6. Flutter / Dart 3 对照
@@ -135,9 +129,9 @@ Text.rich(
 
 1. `text`（纯文本）、`spanStyles`（字符级样式区间）、`paragraphStyles`（段落级样式区间）。
 2. 只作用于块内 append 的文字；`withStyle` 返回即自动结束，不会延续到后面的 append。
-3. 在 `buildAnnotatedString` 中为目标片段包上 `LinkAnnotation.Url`，再用 `ClickableText` 的 `onClick` 拿到字符偏移，`getLinkAnnotations(offset, offset)` 查命中链接后执行跳转。
+3. 在 `buildAnnotatedString` 中为目标片段包上 `withLink(LinkAnnotation.Url(...)) { ... }`，然后交给 `Text` 渲染：`LinkAnnotation.Url` 的点击由 `Text` 自动处理（默认走 `LocalUriHandler`）。需要自己接管点击（弹确认框、自定义路由）时，再用 `LinkAnnotation.Clickable`（`Text` 同样会自动回调）。`ClickableText` 已被弃用，新代码不要再使用。
 4. `SpanStyle` 控制字符级样式（字体、字号、颜色、背景、装饰线）；`ParagraphStyle` 控制段落级样式（对齐、行高、缩进）。
 
 ## 9. 本章总结
 
-富文本的载体是 `AnnotatedString`：一个文本字符串加上带起止偏移的样式区间与链接区间。用 `buildAnnotatedString` 的 `withStyle` 声明样式最安全，局部点击则交给 `ClickableText` 的偏移回调 + `LinkAnnotation` 完成。掌握这三块，协议文案、聊天消息、搜索结果高亮等富文本场景都能覆盖。
+富文本的载体是 `AnnotatedString`：一个文本字符串加上带起止偏移的样式区间与链接区间。用 `buildAnnotatedString` 的 `withStyle` 声明样式最安全，局部点击则用 `withLink` + `LinkAnnotation` 标记，`Text` 会自动处理 `Url`（或 `Clickable`）链接的点击。掌握这三块，协议文案、聊天消息、搜索结果高亮等富文本场景都能覆盖。

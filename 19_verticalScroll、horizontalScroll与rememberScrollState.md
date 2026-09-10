@@ -19,6 +19,7 @@
 
 ## 3. 项目源码片段
 
+<!-- compile -->
 ```kotlin
 Column(
     modifier = Modifier

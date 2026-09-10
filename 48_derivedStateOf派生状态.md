@@ -24,6 +24,9 @@
 
 典型场景：列表滚动超过第一项时显示「回到顶部」按钮。滚动偏移每秒变化几十次，但按钮显示与否只取决于「是否在第一项」这个低频事实。
 
+<!-- compile
+prelude: val scope = rememberCoroutineScope()
+-->
 ```kotlin
 val listState = rememberLazyListState()
 

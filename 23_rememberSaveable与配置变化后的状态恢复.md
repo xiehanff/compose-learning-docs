@@ -21,6 +21,7 @@ StateDemo.kt 的第三小节用 `rememberSaveable` 与 `remember` 做对照（�
 
 ## 3. 项目源码片段
 
+<!-- compile -->
 ```kotlin
 // components/StateDemo.kt:135：只要跨重组保留，用 remember
 var plainCount by remember { mutableIntStateOf(0) }

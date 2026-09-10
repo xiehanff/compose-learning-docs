@@ -19,6 +19,10 @@
 
 ## 3. 项目源码片段
 
+<!-- compile
+prelude: var showSheet by remember { mutableStateOf(false) }
+prelude: var action by remember { mutableStateOf("") }
+-->
 ```kotlin
 if (showSheet) {
     ModalBottomSheet(
@@ -37,6 +41,18 @@ if (showSheet) {
 ## 4. 逐步解释
 
 ModalBottomSheet 与 AlertDialog 一样由状态控制。showSheet 为 true 时进入组合并播放进入动画；下滑、点击遮罩或返回会调用 onDismissRequest。操作项点击后通常记录选择并将 showSheet 设为 false。
+
+一个容易被截图片段藏起来的细节：`ModalBottomSheet` 在 material3 里仍标注为 `@ExperimentalMaterial3Api`，使用它的地方必须显式 opt-in。项目源码 `ModalBottomSheetDemo.kt` 里就写在函数上：
+
+```kotlin
+@OptIn(ExperimentalMaterial3Api::class) // ModalBottomSheet 仍是实验 API，必须显式 opt-in
+@Composable
+fun ModalBottomSheetDemo() {
+    // …上面的 if (showSheet) { ModalBottomSheet(...) } 就在这里
+}
+```
+
+漏写这行会直接编译报错「This material API is experimental」；第 8A 章的 `FlowRow` 同理（用 `ExperimentalLayoutApi`）。
 
 需要程序化 show/hide、跳过半展开状态或等待动画完成时，可引入 SheetState；其方法是挂起函数，需要协程。项目为了突出基础模式，只使用布尔状态。弹层底部还应考虑系统导航栏 Insets。
 
@@ -65,6 +81,7 @@ final action = await showModalBottomSheet<String>(
 ## 7. 常见错误
 
 - onDismissRequest 不修改 showSheet
+- 忘了 `@OptIn(ExperimentalMaterial3Api::class)`：ModalBottomSheet 还是实验 API，直接调用编译不过
 - 点击操作项后忘记关闭
 - 忽略底部系统安全区
 - 同时随意操作布尔值和 SheetState，动画状态竞争

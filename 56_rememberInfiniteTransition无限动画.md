@@ -22,6 +22,7 @@
 
 加载图标无限旋转 + 呼吸灯透明度，两个效果共用同一个 `InfiniteTransition`，全部通过 `graphicsLayer` 施加，不触发任何重组外的布局开销：
 
+<!-- compile decls -->
 ```kotlin
 @Composable
 fun LoadingIndicator() {

@@ -22,6 +22,9 @@
 
 场景一：为有意义的图片提供无障碍描述；纯装饰图标从语义树彻底移除；卡片语义合并。
 
+<!-- compile
+prelude: fun toggleFavorite() {}
+-->
 ```kotlin
 // 有意义的图片：读屏会朗读 contentDescription
 Image(

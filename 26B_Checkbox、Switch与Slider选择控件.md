@@ -20,6 +20,7 @@
 
 ## 3. 项目源码片段
 
+<!-- compile -->
 ```kotlin
 var agreed by remember { mutableStateOf(false) }          // 是否同意协议
 var darkMode by remember { mutableStateOf(false) }        // 是否深色背景

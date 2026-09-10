@@ -24,6 +24,7 @@
 
 场景一：面板宽度小于 600dp 时竖排，否则横排——用 BoxWithConstraints 在组合阶段做响应式决策。
 
+<!-- compile -->
 ```kotlin
 @Composable
 fun ResponsivePanel() {
@@ -48,6 +49,9 @@ fun ResponsivePanel() {
 
 场景二：自定义 Layout 中给子项收紧约束——期望 300px 宽，但必须夹在父约束的合法区间内。
 
+<!-- compile
+prelude: @Composable fun Child() {}
+-->
 ```kotlin
 Layout(content = { Child() }) { measurables, constraints ->
     val child = measurables.first()

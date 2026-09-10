@@ -24,6 +24,7 @@
 
 场景一：可展开/收起的面板。展开时内容从顶部纵向展开并淡入，收起时反向收缩淡出。
 
+<!-- compile decls -->
 ```kotlin
 @Composable
 fun ExpandablePanel() {
@@ -75,6 +76,8 @@ fun TabContentSwitcher() {
 
 场景三：仅需淡入淡出的简单切换，用 `Crossfade` 最省事。
 
+<!-- compile decls
+-->
 ```kotlin
 enum class ViewMode { List, Grid }
 

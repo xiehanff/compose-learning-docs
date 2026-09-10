@@ -24,6 +24,7 @@
 
 场景一：倒计时 10 秒后回调「最新」的 onFinished。LaunchedEffect(Unit) 只在首次组合启动一次，直接捕获 lambda 会拿到当时的旧引用。
 
+<!-- compile decls -->
 ```kotlin
 @Composable
 fun Countdown(

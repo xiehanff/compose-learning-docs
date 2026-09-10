@@ -78,6 +78,7 @@
 69_Hilt依赖注入.md
 70_生命周期感知repeatOnLifecycle.md
 71_导航进阶嵌套导航与类型安全导航.md
+71A_Navigation3与NavDisplay.md
 72_状态持久化DataStore与Room.md
 73_协程进阶Dispatcher与Flow操作符.md
 74_性能分析LayoutInspector与编译器报告.md

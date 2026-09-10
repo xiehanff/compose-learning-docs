@@ -20,6 +20,7 @@
 
 ## 3. 项目源码片段
 
+<!-- compile -->
 ```kotlin
 Row(Modifier.fillMaxWidth()) {
     Box(Modifier.weight(1f).height(64.px))

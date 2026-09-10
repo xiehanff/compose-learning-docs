@@ -1,0 +1,18 @@
+# 代码示例编译校验：生成的 Kotlin 源码由 tools/extract_snippets.py 产出，不入库
+snippets/src/main/kotlin/generated/
+
+# Gradle / Android 构建产物与本地配置
+.gradle/
+build/
+snippets/build/
+local.properties
+snippets/local.properties
+.kotlin/
+*.iml
+captures/
+.externalNativeBuild/
+.cxx/
+
+# 编辑器与系统
+.DS_Store
+.idea/

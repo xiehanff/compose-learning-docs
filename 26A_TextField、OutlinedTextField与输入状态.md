@@ -2,16 +2,18 @@
 
 ## 1. 本章目标
 
-掌握 Compose 输入框的「状态驱动」写法，学会键盘类型配置、输入过滤与错误提示。
+掌握 Compose 输入框当前的推荐写法——**state-based**（`TextFieldState` + `state = ...`），能读懂并迁移旧的 value-based 写法，学会键盘类型、输入过滤、显示格式化与错误提示。
 
 学完后，你应当能够：
 
-- 用 `value` + `onValueChange` 驱动输入框显示与写回
+- 用 `rememberTextFieldState()` + `state =` 驱动输入框显示与写回（官方当前推荐）
+- 读懂 `value` + `onValueChange` 的旧写法，并知道什么时候还该用它
 - 区分 `OutlinedTextField`（描边）与 `TextField`（填充式）两种样式
-- 使用 `label`、`placeholder`、`singleLine` 控制外观
+- 使用 `label`、`placeholder`、`lineLimits` 控制外观与行数
 - 用 `KeyboardOptions(keyboardType = ...)` 弹出合适的键盘
+- 用 `InputTransformation` 过滤输入，用 `OutputTransformation` 只做显示格式化
 - 用 `isError` + `supportingText` 做校验反馈
-- 理解为什么 Compose 的输入框不需要 `dispose`
+- 用 `SecureTextField` 写密码框，并理解为什么不需要 `dispose`
 
 ## 2. 项目中的位置
 
@@ -19,8 +21,13 @@
 
 示例包含三个输入框：姓名（label + placeholder）、年龄（数字键盘 + 输入过滤）、手机号（11 位数字校验 + 错误提示），下方还有实时回显与校验结果。
 
+需要点明一个事实：项目里的 `TextFieldDemo.kt` 目前用的是 **value-based** 写法（`value` + `onValueChange` + `remember { mutableStateOf("") }`）。它没有错，官方仍然支持；但官方当前明确推荐 **state-based**，并提供了从 value-based 迁移的文档。所以本章主线讲 state-based，同时保留 value-based 作为对照——一是让你能读懂旧项目，二是官方迁移文档的重点恰好就是两者的换算关系。
+
 ## 3. 项目源码片段
 
+项目现有代码（value-based，节选：省略顶部 import、`Column` 以外的层级与底部回显文字）：
+
+<!-- compile -->
 ```kotlin
 var name by remember { mutableStateOf("") }
 var age by remember { mutableStateOf("") }
@@ -68,43 +75,187 @@ Column(verticalArrangement = Arrangement.spacedBy(12.px)) {
 }
 ```
 
+与上面等价、本章主线的 state-based 写法（**不是项目现有代码**，官方当前推荐）。节选：只列出本例相关的新 import，其余 import 与 `Column` 以外的层级、底部回显文字省略：
+
+<!-- compile -->
+```kotlin
+import androidx.compose.foundation.text.input.InputTransformation
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.maxLength
+import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.core.text.isDigitsOnly
+// OutlinedTextField / Text 来自 material3，value-based 示例用的是同一个组件，此处不再重复强调
+
+val nameState = rememberTextFieldState()
+val ageState = rememberTextFieldState()
+val phoneState = rememberTextFieldState()
+
+// state-based 下没有 onValueChange，文本直接从 state 里读
+val phone = phoneState.text.toString()
+val phoneValid = phone.length == 11 && phone.all { it.isDigit() }
+val phoneError = phone.isNotEmpty() && !phoneValid
+
+Column(verticalArrangement = Arrangement.spacedBy(12.px)) {
+    // 1) 姓名：label / placeholder 用法不变，行数改用 lineLimits
+    OutlinedTextField(
+        state = nameState,
+        label = { Text("姓名") },
+        placeholder = { Text("请输入姓名") },
+        lineLimits = TextFieldLineLimits.SingleLine,
+        modifier = Modifier.fillMaxWidth(),
+    )
+
+    // 2) 年龄：过滤逻辑搬进 InputTransformation
+    OutlinedTextField(
+        state = ageState,
+        label = { Text("年龄") },
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        lineLimits = TextFieldLineLimits.SingleLine,
+        inputTransformation = InputTransformation {
+            // 接收者是 TextFieldBuffer：只要新文本里出现非数字就整体拒绝这次输入
+            // （isDigitsOnly 来自 androidx.core.text，所以上面必须 import androidx.core.text.isDigitsOnly）
+            if (!asCharSequence().isDigitsOnly()) revertAllChanges()
+        },
+        modifier = Modifier.fillMaxWidth(),
+    )
+
+    // 3) 手机号：isError + supportingText 不变，只用 state 读文本
+    OutlinedTextField(
+        state = phoneState,
+        label = { Text("手机号") },
+        isError = phoneError,
+        supportingText = {
+            Text(if (phoneError) "手机号必须是 11 位数字" else "已输入 ${phone.length}/11 位")
+        },
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+        lineLimits = TextFieldLineLimits.SingleLine,
+        inputTransformation = InputTransformation.maxLength(11), // 顺带限制最多 11 位
+        modifier = Modifier.fillMaxWidth(),
+    )
+}
+```
+
+> 与项目源码的差异只有一处是行为上的：上面手机号加了 `InputTransformation.maxLength(11)`，方便演示过滤；想和项目现状完全一致，去掉这一行即可。
+
 ## 4. 逐步解释
 
-Compose 输入框的核心只有两个参数：`value` 决定当前显示什么，`onValueChange` 在你每敲一个字符时把新文本交给你。你只要在回调里把新值写回状态（如 `name = it`），状态一变界面就重组刷新。这就是「状态驱动」，也是它和 Flutter 最大的思维差异——这里完全没有 `TextEditingController` 这种持有文本的对象，文本就存在你声明的状态里。
+Material3 的 `TextField` / `OutlinedTextField` 各有**两个重载**：一个是旧的 `value: String` + `onValueChange: (String) -> Unit`（value-based），一个是新的 `state: TextFieldState`（state-based）。两者都在，没有谁被删掉；但官方当前推荐 state-based，理由是：`onValueChange` 回调被移除后，你没法在“每次按键”的回调里顺手塞异步行为（例如网络请求、写数据库），文本状态也不再需要你手工从回调往 `mutableStateOf` 里搬；官方文档明确写了 state“survives recomposition, configuration, and process death”。
 
-因此第一件事就是用 `remember { mutableStateOf("") }` 声明文本状态；没有状态，输入框就是只读的。三个示例各用一份状态，互不干扰。
+**状态从哪来。** `TextFieldState` 来自 `androidx.compose.foundation.text.input`，在 composable 里用 `rememberTextFieldState(initialText = "")` 创建。这个函数内部用的就是 `rememberSaveable` 那套保存/恢复机制（配合 `TextFieldState.Saver`），所以旋转屏幕、进程重建之后文本还在——这比原来的 `remember { mutableStateOf("") }` 更强，原来你还得自己换成 `rememberSaveable`。`TextFieldState` 属于 foundation 模块、没有任何 UI 依赖，官方也鼓励把它放到 ViewModel 里（需要自己处理保存恢复）。
 
-样式上，`OutlinedTextField` 是描边外框，`TextField` 是填充式（带下划线），两者参数完全相同，只是外观不同，Material3 里 `OutlinedTextField` 更常用。`label` 是浮动标签，有内容或聚焦时会缩小上浮到边框上；`placeholder` 只在内容为空时显示，二者常一起用；`singleLine = true` 让回车不换行，适合表单类短输入。
+**怎么读。** `state.text` 是当前的 `CharSequence`，`state.selection` 是选区；它们是 Compose 的 snapshot 状态，读了它们的 composable 会在文本变化时自动重组。所以手机号校验与实时回显的写法几乎没变：`val phone = phoneState.text.toString()` 之后，`phoneValid` / `phoneError` 还是纯 Kotlin 布尔运算，底部回显也还是把 `nameState.text` / `ageState.text` / `phoneState.text` 插进模板串。整条链路仍然是单向数据流：用户输入 → `TextFieldState` → 界面用 state 渲染。
 
-键盘类型由 `KeyboardOptions(keyboardType = ...)` 指定：`KeyboardType.Number` 弹纯数字键盘，`KeyboardType.Phone` 弹适合手机号的数字键盘（带 `+ * #`）。注意它只是「提示系统弹哪种键盘」，不保证用户只能输入这些字符，所以业务上还要自己做过滤。
+**样式与行数。** `OutlinedTextField` 是描边外框，`TextField` 是填充式（带下划线），两者参数相同、只是外观不同，Material3 里 `OutlinedTextField` 更常用。`label` 是浮动标签，有内容或聚焦时会缩小上浮到边框上；`placeholder` 只在内容为空时显示。行数控制换了参数：旧的 `singleLine = true` 改成 `lineLimits = TextFieldLineLimits.SingleLine`；旧的 `maxLines = 10` 改成 `TextFieldLineLimits.MultiLine(maxHeightInLines = 10)`（构造参数名是 `minHeightInLines` 与 `maxHeightInLines`）。注意 `singleLine` / `maxLines` 只存在于 value-based 重载，state-based 重载没有这些参数。密码框用 `SecureTextField(state = ...)`（描边版是 `OutlinedSecureTextField`），它本身只支持单行、没有 `lineLimits` 参数，默认就带遮蔽与适合密码的键盘配置。
 
-过滤就是普通 Kotlin 字符串操作：年龄框用 `input.filter { it.isDigit() }` 丢掉所有非数字字符，写回状态后界面上也不会出现非法字符。校验同样是纯 Kotlin 布尔运算：手机号用 `phone.length == 11 && phone.all { it.isDigit() }` 得到 `phoneValid`；再用 `phone.isNotEmpty() && !phoneValid` 得到 `phoneError`，这样「一进页面还没输入」时不会立刻报红。把 `phoneError` 传给 `isError`，描边和标签会自动变成错误色；`supportingText` 是输入框下方的辅助说明区，`isError = true` 时它也会自动使用错误色，于是同一处可以显示「手机号必须是 11 位数字」或「已输入 x/11 位」。
+**键盘。** 两种写法都用 `KeyboardOptions(keyboardType = ...)`：`KeyboardType.Number` 弹纯数字键盘，`KeyboardType.Phone` 弹适合手机号的数字键盘（带 `+ * #`）。它只是“提示系统弹哪种键盘”，不保证用户只能输入这些字符（粘贴、硬件键盘、无障碍服务都可能绕过），所以业务上仍要自己过滤。
 
-最后回答一个常见疑问：为什么不需要 `dispose`？因为这里根本没有需要释放的资源——没有控制器、没有监听器、没有订阅。文本是普通状态，状态随 Composable 一起进入和离开组合，Compose 自己负责回收。需要光标位置、二次格式化等复杂控制时，才需要改用 `TextFieldValue` 或 `TextFieldState`。
+**输入过滤：value-based 与 state-based 对照。** 这是迁移文档的重点。下面以“手机号只允许数字、最多 11 位”为例，两种写法各来一遍：
+
+```kotlin
+// 写法一（value-based，旧项目的做法）：在 onValueChange 里用普通 Kotlin 过滤，再写回状态
+// 节选：phone / OutlinedTextField 的 import 沿用上面的项目源码片段
+OutlinedTextField(
+    value = phone,
+    onValueChange = { input -> phone = input.filter { it.isDigit() }.take(11) },
+    label = { Text("手机号") },
+    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+    singleLine = true,
+    modifier = Modifier.fillMaxWidth(),
+)
+```
+
+```kotlin
+// 写法二（state-based，本章推荐）：用户输入先经过 InputTransformation，通过后才写入 TextFieldState
+// 节选：phoneState 沿用上文，import 见本段前面的 InputTransformation / TextFieldLineLimits
+OutlinedTextField(
+    state = phoneState,
+    inputTransformation = InputTransformation.maxLength(11).then {
+        // 接收者是 TextFieldBuffer；不是纯数字就 revertAllChanges() 整体拒绝
+        if (!asCharSequence().isDigitsOnly()) revertAllChanges()
+    },
+    label = { Text("手机号") },
+    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+    lineLimits = TextFieldLineLimits.SingleLine,
+    modifier = Modifier.fillMaxWidth(),
+)
+```
+
+**`InputTransformation` 的规则。** 它是一个单函数接口，运行在 `TextFieldBuffer` 的接收者作用域里：内置的 `maxLength(...)`、`allCaps()` 可以直接用；自定义就写 `InputTransformation { ... }`，在缓冲区上调用 `delete(...)` / `replace(...)` / `insert(...)` 改写，或者用 `revertAllChanges()` 整体拒绝这次输入。多个过滤器用 `.then(...)` 串联，前一个的修改对后一个可见。两个关键性质：它只在**用户输入**时运行（软硬键盘、粘贴、拖放、无障碍服务、测试），你用代码改 state 不会经过它；它产生的结果**会写入** `TextFieldState`。
+
+注意一个容易漏的 import：`asCharSequence()` 返回的是 `CharSequence`，官方样例里的 `isDigitsOnly()` 不是 Kotlin 标准库函数，而是 `androidx.core.text` 里的扩展函数（来自 `androidx.core:core-ktx`，Android 工程默认就有），所以要写 `import androidx.core.text.isDigitsOnly`。不肯引入它的话，用标准库的 `asCharSequence().all { it.isDigit() }` 效果一样。
+
+**显示格式化：`OutputTransformation`。** 它只影响“画出来的样子”，不改变 state 里的文本，而且不需要你像旧的 `VisualTransformation` 那样自己算 offset mapping：
+
+```kotlin
+// 节选：只列出本例相关的新 import
+import androidx.compose.foundation.text.input.OutputTransformation
+import androidx.compose.foundation.text.input.insert
+
+// 例：11 位数字显示成 138-0000-0000；state 里仍是 11 位纯数字
+val phoneDisplay = OutputTransformation {
+    if (length > 3) insert(3, "-")
+    if (length > 8) insert(8, "-")
+}
+
+OutlinedTextField(
+    state = phoneState,
+    outputTransformation = phoneDisplay,
+    label = { Text("手机号") },
+    lineLimits = TextFieldLineLimits.SingleLine,
+)
+```
+
+`InputTransformation` 与 `OutputTransformation` 的区别就一句话：前者改的是**数据**（结果进 `state`），后者改的是**显示**（`state` 不动）。做校验、存库、发请求时读到的都是原始文本。
+
+**校验反馈。** 逻辑和原来完全一样：`phoneValid = phone.length == 11 && phone.all { it.isDigit() }`，再用 `phoneError = phone.isNotEmpty() && !phoneValid`，这样“一进页面还没输入”时不会立刻报红。把 `phoneError` 传给 `isError`，描边和标签自动变错误色；`supportingText` 是输入框下方的辅助说明区，`isError = true` 时它也会自动使用错误色，于是同一处可以显示“手机号必须是 11 位数字”或“已输入 x/11 位”。
+
+**需要程序性改文本时。** 用 state 的方法，而不是去改一个字符串变量：
+
+```kotlin
+// 节选：只列出本例相关的新 import，Button / Text 等普通组件 import 省略
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
+
+// 例：点击“填入测试号”按钮
+Button(onClick = { phoneState.setTextAndPlaceCursorAtEnd("13800000000") }) { Text("填入测试号") }
+
+// 需要按当前选区做复杂编辑时用 edit { }，缓冲区同样是 TextFieldBuffer
+// phoneState.edit { insert(0, "+86 ") }
+```
+
+组合外部（例如 `LaunchedEffect`、ViewModel）想观察变化，用 `snapshotFlow { state.text }` 收集，例如在 `LaunchedEffect` 里 `collectLatest` 后去更新 ViewModel。
+
+**两种写法的取舍。** 新代码、尤其是会涉及粘贴 / IME 与状态同步的表单，优先 state-based；`value + onValueChange` 仍然受支持，适合旧项目与最简单的场景——例如界面状态本来就是 `StateFlow<UiState>` 里的一堆 `String`（第 68 章的 UDF 架构），改起来牵动一堆代码，此时保留 value-based 完全合理。官方迁移文档也给了折中方案：UI 用 state-based，`uiState: StateFlow` 保持不变，用 `snapshotFlow` 把 `state.text` 同步回 ViewModel。
+
+**为什么不需要 `dispose`。** value-based 下没有需要释放的对象：没有控制器、没有监听器、没有订阅，文本就是普通状态。state-based 下的 `TextFieldState` 也是纯数据状态持有者（只依赖 Compose 的 snapshot 系统），由 `rememberTextFieldState()` 创建并管理，同样不需要业务代码写释放逻辑。这和 Flutter 里必须 `dispose()` 的 `TextEditingController` 形成最直接的对照。
 
 ## 5. 实际执行过程
 
-1. 首次组合：`remember` 创建三个空字符串状态，输入框显示 `label` 与 `placeholder`。
-2. 用户点击年龄框：`keyboardType = KeyboardType.Number` 让系统弹出数字键盘。
-3. 用户按键：系统把新文本交给 `onValueChange`，回调里执行 `filter { it.isDigit() }` 后写回 `age`。
-4. 状态变化触发重组，输入框以新的 `value` 重新生成界面，非法字符根本不会出现在界面上。
-5. 手机号每输入一位都会重新计算 `phoneValid` 与 `phoneError`：不合法时 `isError` 变红、`supportingText` 显示规则提示；合法时描边恢复正常、提示变成计数。
-6. 下方 `Text` 直接把三个状态插值进模板串，实时回显证明「输入 → 状态 → 界面」这条单向数据流。
+1. 首次组合：`rememberTextFieldState()` 创建三个空 `TextFieldState`（内部经 `rememberSaveable` + `TextFieldState.Saver` 注册保存/恢复），输入框显示 `label` 与 `placeholder`。
+2. 用户点击年龄框：`keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)` 让系统弹出数字键盘。
+3. 用户按键：输入先经过 `InputTransformation`，接收者是 `TextFieldBuffer`；`asCharSequence().isDigitsOnly()` 通过才提交，不通过就 `revertAllChanges()` 拒绝这次输入。
+4. 通过后的文本被写入 `ageState`；读过 `text` 的 composable 标记为脏并重组，输入框显示新文本——非法字符根本不会出现在界面上。
+5. 手机号每输入一位都会重新计算 `phoneValid` 与 `phoneError`：不合法时 `isError` 变红、`supportingText` 显示规则提示；合法时描边恢复正常、提示变成计数。`InputTransformation.maxLength(11)` 保证不会超过 11 位。
+6. 下方 `Text` 把三个 state 的 `text` 插值进模板串，实时回显证明「输入 → state → 界面」这条单向数据流。
+7. 旋转屏幕或进程重建后再次组合：`rememberTextFieldState` 负责把文本找回来，不用你写额外的保存逻辑。
 
 ## 6. Flutter / Dart 3 对照
 
-Flutter 的 `TextField` 的 `controller` 是可选的：不传 controller 时靠 `onChanged` 也能拿到每次输入；要主动读文本、控制光标或清空内容时才自己创建 `TextEditingController`，而一旦是自己创建的，就必须在 `dispose` 里释放它。Compose 没有这层对象，文本本身就存在状态里。
+Flutter 的 `TextField` 用 `TextEditingController` 持有文本与光标，自己创建的 controller 必须在 `dispose` 里释放；Compose 的 `TextFieldState` 扮演的是同一角色，但它是 snapshot 状态，由 `rememberTextFieldState()` 管理并自带保存/恢复，不需要释放。Flutter 的 `inputFormatters` 对应 `InputTransformation`；Flutter 没有“只改显示、不改数据”的独立机制（`inputFormatters` 的结果会写进 controller 的文本），而 Compose 的 `OutputTransformation` 正好干这件事。
 
 ```dart
-// controller 是可选的：需要主动读文本 / 控制光标时才创建
+// 节选：省略 import（FilteringTextInputFormatter 等在 package:flutter/services.dart）
 final controller = TextEditingController();
 
 TextField(
-  controller: controller,   // 不用 controller 时删掉这一行，改用 onChanged: (v) { ... }
-  keyboardType: TextInputType.number,
+  controller: controller,                 // 不传 controller 也能跑，改用 onChanged 即可
+  keyboardType: TextInputType.phone,
+  inputFormatters: [
+    FilteringTextInputFormatter.digitsOnly,        // 只允许数字
+    LengthLimitingTextInputFormatter(11),          // 最多 11 位
+  ],
   decoration: const InputDecoration(
-    labelText: '年龄',
-    hintText: '请输入年龄',
+    labelText: '手机号',
+    hintText: '请输入手机号',
     errorText: null, // 非 null 时自动显示红色错误文案
   ),
 );
@@ -116,36 +267,46 @@ void dispose() {
 }
 ```
 
-参数对照：`label` 对应 `labelText`，`placeholder` 对应 `hintText`，`isError` + `supportingText` 合起来对应 `errorText`（以及 `helperText`），`keyboardOptions.keyboardType` 对应 `keyboardType`。
+参数对照：`label` 对应 `labelText`，`placeholder` 对应 `hintText`，`isError` + `supportingText` 合起来对应 `errorText`（以及 `helperText`），`keyboardOptions.keyboardType` 对应 `keyboardType`，`lineLimits = TextFieldLineLimits.SingleLine` 对应 `maxLines: 1`，`InputTransformation` 对应 `inputFormatters`。
 
-本质区别有两点：第一，Flutter 常见做法是用控制器持有文本、监听变化后 `setState`；Compose 是状态即文本，`onValueChange` 写回即刷新，没有中间对象。第二，Flutter 只有自己创建了 `TextEditingController` 时才需要负责 `dispose`（完全不传 controller、只用 `onChanged` 也可以），Compose 由框架内部管理输入状态，业务代码不需要写任何释放代码。至于输入过滤，Flutter 常用 `inputFormatters`（如 `FilteringTextInputFormatter.digitsOnly`），Compose 直接在 `onValueChange` 里用 Kotlin 的 `filter` 表达，更直白。
+本质区别有三点。第一，Flutter 的典型写法是控制器持有文本、监听后 `setState`；Compose 的 state-based 是 `TextFieldState` 持有文本，界面直接读它渲染，没有 `onValueChange` 回调，也就没法在回调里引入异步行为。第二，Flutter 的 controller 必须自己 `dispose`；Compose 的输入状态由框架与 `rememberTextFieldState` 管理，业务代码不需要任何释放代码。第三，Compose 把“过滤输入”和“美化显示”拆成了 `InputTransformation` 与 `OutputTransformation` 两步，Flutter 里这两件事通常都塞在 `inputFormatters` 中，格式化字符会一起写进 controller 的数据。
 
 ## 7. 常见错误
 
-- 只写 `value` 不写 `onValueChange`，或回调里没把新值写回状态，输入框看起来「打不进去字」
-- 用普通 `var` 而不是 `mutableStateOf`，文本变了但界面不刷新
-- 以为 `keyboardType = KeyboardType.Number` 就能保证只能输入数字，忘记在 `onValueChange` 里过滤
+- 在 state-based 重载里继续传 `value` / `onValueChange`，或在 value-based 重载里传 `state`：编译不过——先分清用的是哪个重载
+- state-based 里还写 `singleLine = true` 或 `maxLines = 10`：这两个参数只属于 value-based 重载，应改用 `lineLimits`
+- state-based 里继续用 `visualTransformation`：该参数属于 value-based 重载，改用 `outputTransformation`（并且不用自己算 offset mapping）
+- 在 `InputTransformation` 里去改 `TextFieldState` 或做异步操作：它的作用是只改 `TextFieldBuffer`，异步/副作用放到别处
+- 忘记 `InputTransformation` 只对用户输入生效：用 `state.setTextAndPlaceCursorAtEnd(...)` 程序性写入时不会经过过滤器，需要自己保证数据合法
+- 把 `InputTransformation` 与 `OutputTransformation` 混为一谈：前者改变 state 里的数据，后者只影响显示
+- 以为 `keyboardType = KeyboardType.Number` 就能保证只能输入数字，忘记做过滤
 - 校验只在提交时算一次，或者一进页面就把 `isError` 置为 `true`，界面开局全是红色
 - 把 `placeholder` 当 `label` 用，聚焦后占位文字消失、用户不知道这一栏填什么
-- 长文本忘写 `singleLine = true`，回车换行导致布局跳动
-- 沿用 Flutter 习惯在 Compose 里找 `dispose`：Compose 输入框的内部状态由框架管理，业务代码没有需要释放的资源
+- 沿用 Flutter 习惯在 Compose 里找 `dispose`：两种写法都没有需要业务代码释放的资源
+- 旧代码里看到 `value + onValueChange` 就以为过时了：它仍然受支持，只是新代码优先 state-based
 
 ## 8. 本章检查题
 
-1. Compose 输入框靠哪两个参数完成「显示 + 写回」？为什么不需要 `TextEditingController`？
-2. `label` 与 `placeholder` 的显示时机有什么不同？
-3. `KeyboardOptions(keyboardType = KeyboardType.Number)` 能保证用户只输入数字吗？应该怎么做？
-4. 项目里 `phoneError` 为什么写成 `phone.isNotEmpty() && !phoneValid` 而不是直接 `!phoneValid`？
-5. 为什么 Compose 的输入框不需要 `dispose`？
+1. state-based 输入框靠哪个参数驱动？`TextFieldState` 怎么创建，还需要自己写保存/恢复吗？
+2. value-based 与 state-based 应该怎么取舍？
+3. 原来的 `singleLine = true` 和 `maxLines = 10` 在 state-based 里分别怎么写？
+4. “手机号只允许数字”用 value-based 与 `InputTransformation` 分别怎么写？
+5. `InputTransformation` 与 `OutputTransformation` 的区别是什么？哪一个会改变 `TextFieldState` 里的文本？
+6. 想用代码把文本改成 `"13800000000"`、想在组合外监听文本变化，分别怎么做？
+7. `KeyboardOptions(keyboardType = KeyboardType.Number)` 能保证用户只输入数字吗？应该怎么做？
+8. 项目里 `phoneError` 为什么写成 `phone.isNotEmpty() && !phoneValid` 而不是直接 `!phoneValid`？为什么不需要 `dispose`？
 
 答案：
 
-1. `value` 决定显示内容，`onValueChange` 把用户新输入交给你写回状态。文本本身就在状态里，不需要额外的控制器对象持有，所以没有控制器，也就没有控制器的释放问题。
-2. `label` 会在聚焦或有内容时缩小上浮到边框上方；`placeholder` 只在内容为空时显示，有内容后消失。
-3. 不能。它只是提示系统弹出哪种键盘，非法字符仍可能进来（如粘贴）。业务上要在 `onValueChange` 里做过滤，例如 `input.filter { it.isDigit() }`。
-4. 如果直接取反，一进页面还没输入时 `phoneValid` 就是 `false`，输入框会立刻变红。加上 `isNotEmpty()` 后只有「已输入且不合法」才报错。
-5. 因为它没有控制器、监听器或订阅等需要释放的资源，文本只是普通状态，随 Composable 离开组合由 Compose 回收。
+1. 靠 `state: TextFieldState` 驱动。在 composable 里用 `rememberTextFieldState(initialText = "")` 创建；它内部使用 `rememberSaveable`（配合 `TextFieldState.Saver`），保存与恢复都由它负责，不需要自己写。
+2. 新代码优先 state-based：没有 `onValueChange` 回调、状态能扛过重组/配置变化/进程死亡、过滤与格式化分工清晰。`value + onValueChange` 仍然受支持，适合旧项目与最简单场景，例如 UI 状态本来就是 `StateFlow<UiState>` 里的 `String`，改造代价大于收益；折中做法是 UI 用 state-based，再用 `snapshotFlow { state.text }` 把变化同步回 ViewModel。
+3. `singleLine = true` 改成 `lineLimits = TextFieldLineLimits.SingleLine`；`maxLines = 10` 改成 `lineLimits = TextFieldLineLimits.MultiLine(maxHeightInLines = 10)`。
+4. value-based：`onValueChange = { input -> phone = input.filter { it.isDigit() }.take(11) }`；state-based：`inputTransformation = InputTransformation.maxLength(11).then { if (!asCharSequence().isDigitsOnly()) revertAllChanges() }`。
+5. `InputTransformation` 处理用户输入，结果写进 `TextFieldState`，所以它改变数据；`OutputTransformation` 只影响画出来的文本，不改变 state，也不需要自己计算 offset mapping（旧的 `VisualTransformation` 需要）。
+6. 程序性修改用 `state.setTextAndPlaceCursorAtEnd(text)`，或按选区做复杂编辑时用 `state.edit { ... }`（接收者是 `TextFieldBuffer`）；组合外观察变化用 `snapshotFlow { state.text }`。
+7. 不能。它只是提示系统弹出哪种键盘，粘贴、硬件键盘等仍可能带进非数字字符。业务上要用 `InputTransformation`（或 value-based 下在 `onValueChange` 里）过滤。
+8. 如果直接取反，一进页面还没输入时 `phoneValid` 就是 `false`，输入框会立刻变红；加上 `isNotEmpty()` 后只有「已输入且不合法」才报错。不需要 `dispose` 是因为两种写法都没有业务代码要释放的资源：value-based 只是普通状态，state-based 的 `TextFieldState` 也是由 `rememberTextFieldState` 管理的纯数据状态持有者。
 
 ## 9. 本章总结
 
-Compose 输入框是纯状态驱动：`value` 显示、`onValueChange` 写回，没有控制器也没有 `dispose`。用 `label`/`placeholder`/`singleLine` 控制外观，用 `KeyboardOptions(keyboardType = ...)` 提示键盘类型，用 `isError` + `supportingText` 反馈校验结果，输入过滤和校验逻辑都是普通 Kotlin 代码。对照 Flutter 的 `TextField` + `TextEditingController` + `InputDecoration(errorText:)`，能最清楚地看出「状态驱动」和「控制器驱动」的差别。
+Compose 输入框当前推荐 state-based：`rememberTextFieldState()` 创建 `TextFieldState`（自带 `rememberSaveable` 级别的保存恢复），`state =` 是唯一入口，文本从 `state.text` 读，界面自动重组；密码框用 `SecureTextField(state = ...)`。行数用 `lineLimits`，键盘用 `KeyboardOptions(keyboardType = ...)`，输入过滤用 `InputTransformation`（内置 `maxLength`，自定义在 `TextFieldBuffer` 上用 `delete` / `replace` / `revertAllChanges`，可 `.then(...)` 串联，结果会写入 state），显示格式化用 `OutputTransformation`（不改 state、不用算 offset mapping）。`isError` + `supportingText` 做校验反馈，程序性改文本用 `setTextAndPlaceCursorAtEnd` / `edit { }`，组合外观察用 `snapshotFlow`。`value + onValueChange` 仍然受支持，定位是旧项目与简单场景——项目里的 `TextFieldDemo.kt` 目前就是这种写法；对照 Flutter 的 `TextField` + `TextEditingController` + `inputFormatters`，能最清楚地看出「谁持有文本、谁负责过滤、谁负责释放」这三件事在两边的分工差别。

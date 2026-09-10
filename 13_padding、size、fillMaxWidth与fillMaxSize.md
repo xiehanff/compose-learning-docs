@@ -21,13 +21,24 @@
 
 ## 3. 项目源码片段
 
+<!-- compile
+prelude: val padding = PaddingValues(16.dp)
+-->
 ```kotlin
 LazyColumn(
     modifier = Modifier
         .fillMaxSize()
         .padding(padding),
     contentPadding = PaddingValues(16.px),
-)
+) {
+    items(3) { index ->
+        Text("第 $index 项")
+    }
+
+    item {
+        Text("最后一项") // contentPadding 会让首末项与滚动范围的边缘留出间距
+    }
+}
 
 Box(
     Modifier

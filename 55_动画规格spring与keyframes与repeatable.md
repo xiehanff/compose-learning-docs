@@ -22,6 +22,9 @@
 
 场景一：点赞图标回弹——短距离、需要"过冲再回弹"的物理手感，用 `spring`。
 
+<!-- compile
+prelude: val liked = false
+-->
 ```kotlin
 val scale by animateFloatAsState(
     targetValue = if (liked) 1.15f else 1f,
@@ -35,14 +38,17 @@ val scale by animateFloatAsState(
 
 场景二：加载进度条——前段快、中段慢、后段加速的"变速"效果，用 `keyframes` 分段控制。
 
+<!-- compile
+prelude: val loading = false
+-->
 ```kotlin
 val progress by animateFloatAsState(
     targetValue = if (loading) 1f else 0f,
     animationSpec = keyframes {
         durationMillis = 2000               // 总时长必须显式设置
-        0f at 0 with LinearEasing
-        0.4f at 500 with FastOutSlowInEasing
-        0.7f at 1200 with LinearEasing
+        0f at 0 using LinearEasing
+        0.4f at 500 using FastOutSlowInEasing
+        0.7f at 1200 using LinearEasing
         1f at 2000
     },
     label = "loadingProgress"
@@ -51,6 +57,7 @@ val progress by animateFloatAsState(
 
 场景三：呼吸灯——透明度在 0.2 与 1 之间无限往返，用 `infiniteRepeatable` + `RepeatMode.Reverse`。这里的"无限动画"指不会自己结束、一直循环播放的动画；普通 `animate*AsState` 只会播到目标值就停，想让它一直转需要换个容器——`rememberInfiniteTransition` 就是专门持续驱动无限动画的入口（第 56 章详解），本章只需用它把 `infiniteRepeatable` 跑起来。
 
+<!-- compile -->
 ```kotlin
 val alpha by rememberInfiniteTransition(label = "breath").animateFloat(
     initialValue = 0.2f,
@@ -120,14 +127,14 @@ spring(
 ```kotlin
 keyframes {
     durationMillis = 2000    // 总时长（必填）
-    0f at 0 with LinearEasing
-    0.4f at 500 with FastOutSlowInEasing
-    0.7f at 1200 with LinearEasing
+    0f at 0 using LinearEasing
+    0.4f at 500 using FastOutSlowInEasing
+    0.7f at 1200 using LinearEasing
     1f at 2000
 }
 ```
 
-注意 `at` 后面是**绝对毫秒位置**（相对总时长），不是百分比；段与段之间自动插值。适合"先快后慢再冲刺"这种非均匀节奏，或"前 70% 是 A 动作、后 30% 是 B 动作"的编排。
+注意 `at` 后面是**绝对毫秒位置**（相对总时长），不是百分比；段与段之间自动插值。具体曲线用 `using` 指定（旧写法 `with` 已弃用，它不返回关键帧实体，无法复用到其它 keyframes 构造器）。适合"先快后慢再冲刺"这种非均匀节奏，或"前 70% 是 A 动作、后 30% 是 B 动作"的编排。
 
 记住：`keyframes` 是"时间点 → 值 → 曲线"的表格，`durationMillis` 必须设置。
 
@@ -207,7 +214,7 @@ SpringSimulation(
 | Compose | Flutter |
 |---|---|
 | `tween(durationMillis, easing)` | `Duration` + `CurvedAnimation` |
-| `keyframes { ... at ... with ... }` | `TweenSequence` + 权重 |
+| `keyframes { ... at ... using ... }` | `TweenSequence` + 权重 |
 | `spring(dampingRatio, stiffness)` | `SpringSimulation` |
 | `repeatable` / `infiniteRepeatable` | `controller.repeat()` / `Repeat` |
 | `FastOutSlowInEasing` | `Curves.easeOut` 等 |
@@ -253,7 +260,7 @@ animateFloatAsState(1f, infiniteRepeatable(tween(500)))
 答案：
 
 1. `dampingRatio`（阻尼比）控制回弹程度：0 到 1 有振荡、1 临界、大于 1 过阻尼；`stiffness`（刚度）控制弹簧硬度，越大回弹越快。
-2. 在 `keyframes { durationMillis = ... }` 中写 `值 at 时间点 with 曲线`；`at` 后是相对总时长的绝对毫秒位置，不是百分比。
+2. 在 `keyframes { durationMillis = ... }` 中写 `值 at 时间点 using 曲线`；`at` 后是相对总时长的绝对毫秒位置，不是百分比。
 3. `repeatable` 循环有限次数后结束并停在最终值；`infiniteRepeatable` 永不结束，只能用于无限动画上下文（如 `rememberInfiniteTransition`）；两者都可通过 `RepeatMode.Restart`/`Reverse` 控制往返方式。
 
 ## 9. 本章总结

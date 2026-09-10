@@ -26,6 +26,7 @@
 
 场景一：点击按钮后，先播放一段 1 秒的位移动画，动画结束后才执行回调（例如弹出提示）。
 
+<!-- compile decls -->
 ```kotlin
 @Composable
 fun AnimateThenCallback(onFinished: () -> Unit) {
@@ -59,6 +60,7 @@ fun AnimateThenCallback(onFinished: () -> Unit) {
 
 拖动本身由手势检测提供：`pointerInput` 负责在节点上接住指针事件，`detectDragGestures` 负责把「按下—移动—抬起」的原始事件识别成拖动回调（两者第 65 章详解）。本章只关心识别出拖动之后的事：跟手移动用 `snapTo`，松手回弹用 `spring` 规格——一种由物理参数（阻尼、刚度）推算时长、而不是预设固定时长的弹簧动画规格（第 55 章详解）。它是否会「过冲再回弹」取决于阻尼：示例里用的 `DampingRatioMediumBouncy` 属于欠阻尼，会冲过目标值再弹回来；阻尼加到临界或过阻尼后就只会逼近目标，不再回弹。
 
+<!-- compile decls -->
 ```kotlin
 @Composable
 fun DraggableBall() {

@@ -24,6 +24,7 @@ Column、Row、Box 覆盖了 90% 的场景，但遇到「标签流式换行」�
 
 场景：搜索页的关键词标签云，子项横向排列、放不下就换行——这就是一个简易 FlowLayout。
 
+<!-- compile -->
 ```kotlin
 @Composable
 fun FlowLayout(
@@ -39,29 +40,39 @@ fun FlowLayout(
         // constraints：父级给本布局划定的宽高范围（第 63 章详解）
         // 1. 逐个测量所有子项
         val placeables = measurables.map { it.measure(constraints) }
+        val maxWidth = constraints.maxWidth.takeIf { it != Constraints.Infinity }
+            ?: Int.MAX_VALUE
 
-        // 2. 放入行，放不下则换行
+        // 2. 先算出每个子项的坐标，以及自身需要的宽高
         var x = 0f
         var y = 0f
         var rowHeight = 0f
         var totalWidth = 0f
-        val maxWidth = constraints.maxWidth.takeIf { it != Constraints.Infinity }
-            ?: Int.MAX_VALUE
-
-        placeables.forEach { p ->
+        val positions = placeables.map { p ->
             if (x > 0 && x + p.width > maxWidth) {
                 x = 0f
                 y += rowHeight + vGap
                 rowHeight = 0f
             }
-            p.place(x.roundToInt(), y.roundToInt())
+            val position = x to y
             x += p.width + hGap
             rowHeight = maxOf(rowHeight, p.height.toFloat())
             totalWidth = maxOf(totalWidth, x - hGap)
+            position
         }
 
-        // 3. 声明自身尺寸
-        layout(totalWidth.roundToInt(), (y + rowHeight).roundToInt()) {}
+        // 3. 声明自身尺寸，并在 PlacementScope 里真正摆放子项
+        // 汇总出的尺寸必须裁剪回父级给的约束内：父级可能要求了非零的最小宽高，
+        // 直接报 totalWidth 会违反约束（子项宽高为 0 时也不能报 0）
+        layout(
+            constraints.constrainWidth(totalWidth.roundToInt()),
+            constraints.constrainHeight((y + rowHeight).roundToInt()),
+        ) {
+            placeables.forEachIndexed { index, p ->
+                val (px, py) = positions[index]
+                p.place(px.roundToInt(), py.roundToInt()) // place 只能在 layout {} 的 lambda 内调用
+            }
+        }
     }
 }
 
@@ -134,7 +145,7 @@ CustomMultiChildLayout(children: [...], delegate: FlowDelegate());
 2. `place` 超出自身声明的 size：子项会被裁剪。父级只保证你声明的 `layout(width, height)` 区域可见，放出去的部分不保证绘制。
 3. 循环依赖：父按子尺寸决定尺寸，子又要求父约束完全固定，两者互相等对方——约束无法收敛。打破方法是子项测量必须接受父给的约束，不再向上要信息。
 4. 忘记调用 `layout()`：不声明尺寸，整个测量结果无效，子项不会显示。
-5. 不设置最小尺寸导致塌陷：子项宽高都是 0 时，自身 `layout` 的宽高也是 0，视觉上完全消失。必要时用 `constraints.constrainWidth(...)` 保证最小值。
+5. 不设置最小尺寸导致塌陷：子项宽高都是 0 时，自身 `layout` 的宽高也是 0，视觉上完全消失。用 `constraints.constrainWidth(...)` / `constrainHeight(...)` 把汇总尺寸夹回父级约束，既不会突破父级上限，也能拿到父级要求的最小尺寸。
 
 ## 8. 本章检查题
 

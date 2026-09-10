@@ -25,6 +25,10 @@
 
 **场景：信息流列表，带稳定的 key、类型化的 contentType，以及触底自动加载下一页。**
 
+<!-- compile decls
+prelude: class FeedItem(val id: String, val type: String, val createdAt: Long)
+prelude: @Composable fun FeedItemRow(item: FeedItem) = Unit
+-->
 ```kotlin
 @Composable
 fun FeedList(
@@ -63,6 +67,10 @@ fun FeedList(
 
 **场景：item 内昂贵的格式化计算用 remember 缓存，按 id 而非对象缓存。**
 
+<!-- compile decls
+prelude: class FeedItem(val id: String, val type: String, val createdAt: Long)
+prelude: fun formatTimestamp(t: Long): String = ""
+-->
 ```kotlin
 @Composable
 fun FeedItemRow(item: FeedItem) {

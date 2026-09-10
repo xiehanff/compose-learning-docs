@@ -22,6 +22,7 @@
 
 线性渐变背景 + 径向渐变圆形 + 扫描渐变"表盘"，展示三种渐变 Brush 的典型用法：
 
+<!-- compile decls -->
 ```kotlin
 @Composable
 fun GradientShowcase() {

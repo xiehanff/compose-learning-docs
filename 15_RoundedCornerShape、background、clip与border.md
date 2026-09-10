@@ -21,6 +21,9 @@
 
 ## 3. 项目源码片段
 
+<!-- compile
+prelude: val imageBitmap: ImageBitmap = ImageBitmap(4, 4)
+-->
 ```kotlin
 Box(
     modifier = Modifier
@@ -38,8 +41,9 @@ Box(
 )
 
 Image(
+    bitmap = imageBitmap,
+    contentDescription = "圆角图片",
     modifier = Modifier.clip(RoundedCornerShape(12.px)),
-    /* ... */
 )
 ```
 

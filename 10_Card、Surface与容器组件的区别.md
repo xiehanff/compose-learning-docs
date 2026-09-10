@@ -21,6 +21,11 @@
 
 ## 3. 项目源码片段
 
+<!-- compile
+prelude: val onClick: () -> Unit = {}
+prelude: class Info(val title: String)
+prelude: val info = Info("卡片")
+-->
 ```kotlin
 Card(
     onClick = onClick,

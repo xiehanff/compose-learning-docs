@@ -19,6 +19,9 @@
 
 ## 3. 项目源码片段
 
+<!-- compile
+prelude: val imageBitmap: ImageBitmap = ImageBitmap(4, 4)
+-->
 ```kotlin
 Image(
     bitmap = imageBitmap,

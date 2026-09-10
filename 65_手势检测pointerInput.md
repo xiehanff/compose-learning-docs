@@ -59,6 +59,9 @@ fun GestureImageDemo() {
 
 场景二：底层事件流与单指拖拽——看清楚 detect 系列背后的机制。
 
+<!-- compile
+prelude: var offset by remember { mutableStateOf(Offset.Zero) }
+-->
 ```kotlin
 Modifier.pointerInput(Unit) {
     awaitPointerEventScope {

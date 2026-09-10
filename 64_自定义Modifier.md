@@ -25,41 +25,55 @@
 
 场景一：文字图标太小，手指点不准。封装一个「扩大点击热区」的 modifier——layout 撑大测量区域，pointerInput 接收整个区域的点击。
 
+<!-- compile -->
 ```kotlin
 fun Modifier.expandClickArea(
     extra: Dp = 12.dp,
     onClick: () -> Unit,
 ): Modifier = composed {
     val extraPx = with(LocalDensity.current) { extra.toPx() }
+    // pointerInput 的 keys 是 Unit，协程不会重启；用 rememberUpdatedState 保证总是调到最新的 onClick
+    val currentOnClick by rememberUpdatedState(onClick)
     this
         .layout { measurable, constraints ->
+            // 抬高最小尺寸：子项在四周各空出 extra（自带固定尺寸并居中绘制的 Icon 效果最直观），
+            // 热区就是扩大后的布局尺寸。上限必须同时受父约束限制：
+            // 父级最大尺寸比 extra 小时，minWidth > maxWidth 的约束会直接抛异常
+            val expandedMinWidth = (constraints.minWidth + (extraPx * 2).roundToInt())
+                .coerceAtMost(constraints.maxWidth)
+            val expandedMinHeight = (constraints.minHeight + (extraPx * 2).roundToInt())
+                .coerceAtMost(constraints.maxHeight)
             val placeable = measurable.measure(
                 constraints.copy(
-                    minWidth = constraints.minWidth + (extraPx * 2).roundToInt(),
-                    minHeight = constraints.minHeight + (extraPx * 2).roundToInt(),
+                    minWidth = expandedMinWidth,
+                    minHeight = expandedMinHeight,
                 )
             )
-            layout(placeable.width, placeable.height) {
-                placeable.place(extraPx.roundToInt(), extraPx.roundToInt())
+            // 报给父级的尺寸同样要夹回父约束，否则会突破父级上限
+            layout(
+                constraints.constrainWidth(placeable.width),
+                constraints.constrainHeight(placeable.height),
+            ) {
+                placeable.place(0, 0)
             }
         }
         .pointerInput(Unit) {
-            detectTapGestures(onTap = { onClick() })
+            detectTapGestures(onTap = { currentOnClick() })
         }
 }
 
-// 使用
+// 使用：expandClickArea 必须写在固定尺寸的 modifier 之前（更靠外层），
+// 否则 size(24.dp) 把约束卡死在 24，热区根本没有扩展空间
 Icon(
-    Icons.FavoriteBorder,
+    Icons.Filled.FavoriteBorder,
     contentDescription = "收藏",
-    modifier = Modifier
-        .size(24.dp)
-        .expandClickArea(extra = 16.dp, onClick = { /* 收藏 */ }),
+    modifier = Modifier.expandClickArea(extra = 16.dp, onClick = { /* 收藏 */ }),
 )
 ```
 
 场景二：按下时画一层按压高光——把状态放进 composed，绘制交给 drawBehind。
 
+<!-- compile -->
 ```kotlin
 fun Modifier.pressHighlight(): Modifier = composed {
     var pressed by remember { mutableStateOf(false) }
@@ -87,7 +101,9 @@ fun Modifier.pressHighlight(): Modifier = composed {
 
 `Modifier.drawBehind` 在绘制阶段、内容**之后**（底层）绘制；`Modifier.drawWithContent` 允许在 drawContent() 前后分别绘制，可以做渐变遮罩、边框叠加等。绘制 modifier 里拿到的 `size` 是布局后的尺寸，绘制逻辑与布局无关。
 
-`Modifier.pointerInput(keys) { ... }` 为链上节点启动一个手势协程，用来接住这个节点上的原始指针事件；块里通常搭配一个"手势识别器"把原始事件翻译成有意义的回调，本章用的是 `detectTapGestures`——它把"按下、抬起"的序列识别成 `onTap`、`onPress`、长按等回调（两者都是第 65 章的内容，本章只需会照着写）。关键点是 `keys`：协程块内捕获的外部值变化时，只有 keys 变化协程才会重启并拿到新值；keys 不变，块内闭包永远是组合那一刻的旧值。
+`Modifier.pointerInput(keys) { ... }` 为链上节点启动一个手势协程，用来接住这个节点上的原始指针事件；块里通常搭配一个"手势识别器"把原始事件翻译成有意义的回调，本章用的是 `detectTapGestures`——它把"按下、抬起"的序列识别成 `onTap`、`onPress`、长按等回调（两者都是第 65 章的内容，本章只需会照着写）。关键点是 `keys`：协程块内捕获的外部值变化时，只有 keys 变化协程才会重启并拿到新值；keys 不变，块内闭包永远是组合那一刻的旧值。所以像 `onClick` 这种「每次重组都可能换一个新 lambda」的回调，要先用 `rememberUpdatedState(onClick)` 包一层，再在协程里读 `currentOnClick()`（第 49 章）。
+
+上面的 `expandClickArea` 还有两个容易踩的坑：`layout` 里修改约束时必须保证修改后的最小值不超过最大值（父级可能已经把最大尺寸卡得很小），报给父级的尺寸也要用 `constraints.constrainWidth/Height` 夹回父约束，否则会违反约束；因为 `Icon` 自带的 `size(24.dp)` 排在调用方 modifier 的后面（更靠内），所以扩展热区的 modifier 要写在固定尺寸之前，写成 `Modifier.size(24.dp).expandClickArea(...)` 就没有扩展空间了。
 
 `Modifier.composed { ... }` 让 modifier 工厂函数获得组合上下文——里面可以调用 `remember`、`LocalDensity.current` 等。普通扩展函数不能调用 remember（没有组合作用域），所以**有状态的 modifier 必须用 composed 封装**。注意 composed 本身有开销（每次组合都执行 lambda），简单无状态 modifier 用普通函数即可。
 
@@ -98,10 +114,10 @@ modifier 链的顺序意义：链按声明顺序从外到内包裹，**先声明
 ## 5. 实际执行过程
 
 1. 组合阶段执行 composed 块，remember 创建 pressed 状态、读取 density
-2. 测量阶段 expandClickArea 的 layout 把约束撑大，测量子项得到放大后的 Placeable
-3. 放置阶段把子项偏移 extra，形成四周的「热区」
-4. 用户点击热区，pointerInput 协程收到事件，detectTapGestures 识别出 tap
-5. onClick 执行；pressHighlight 场景里 pressed 置 true 触发重组
+2. 测量阶段 expandClickArea 的 layout 抬高最小约束（并夹回父约束上限），测量子项得到被撑大后的 Placeable
+3. 报给父级的尺寸同样夹回父约束，子项不变形（`Icon` 自带的 `size(24.dp)` 居中显示）
+4. 用户点击扩大后的热区，pointerInput 协程收到事件，detectTapGestures 识别出 tap
+5. onClick 执行（rememberUpdatedState 保证是最新传入的那个）；pressHighlight 场景里 pressed 置 true 触发重组
 6. 重组后 drawBehind 按新状态重绘高光，抬起后恢复
 
 ## 6. Flutter / Dart 3 对照
@@ -125,10 +141,11 @@ GestureDetector(
 ## 7. 常见错误
 
 1. 在 `Modifier.layout` 里不调用 measure 或忘记 place：子项不显示或直接抛「measure 未调用」类错误，三步必须完整。
-2. `pointerInput` 的 keys 不变导致事件处理用旧状态：闭包捕获的是组合时刻的值。要么把依赖放进 keys（注意会重启协程），要么用 `rememberUpdatedState` 保存最新回调。
-3. 把 `remember` 写在普通 modifier 扩展函数里（没包 composed）：remember 只能在组合上下文调用，编译直接报错。
-4. 顺序搞反：padding 与 background 的顺序决定背景覆盖范围；drawBehind 写在链中不同位置影响绘制层级——先声明的绘制在下层，被后声明的覆盖。
-5. 在 layout 块里现算 density/px：layout 块不是组合上下文，应该在 composed 阶段先算好再捕获进闭包。
+2. `pointerInput` 的 keys 不变导致事件处理用旧状态：闭包捕获的是组合时刻的值。要么把依赖放进 keys（注意会重启协程），要么用 `rememberUpdatedState` 保存最新回调（本章 `expandClickArea` 用的就是后者）。
+3. 在 `layout` 里直接改约束不看上限：父级最大尺寸比 `extra` 小时，`constraints.copy(minWidth = 更大的值)` 会造出`minWidth > maxWidth`的非法约束并抛异常；正确做法是先 `coerceAtMost(constraints.maxWidth/maxHeight)`，再用 `constraints.constrainWidth/Height` 裁剪最终尺寸。
+4. 把 `remember` 写在普通 modifier 扩展函数里（没包 composed）：remember 只能在组合上下文调用，编译直接报错。
+5. 顺序搞反：padding 与 background 的顺序决定背景覆盖范围；drawBehind 写在链中不同位置影响绘制层级——先声明的绘制在下层，被后声明的覆盖。固定尺寸的 `size(...)` 写在扩展热区的 modifier 之前，热区就扩不出来。
+6. 在 layout 块里现算 density/px：layout 块不是组合上下文，应该在 composed 阶段先算好再捕获进闭包。
 
 ## 8. 本章检查题
 
@@ -136,6 +153,7 @@ GestureDetector(
 2. `pointerInput` 的 keys 参数起什么作用？
 3. modifier 的顺序影响什么？
 4. 为什么有状态的 modifier 必须用 `composed` 封装？
+5. `expandClickArea` 为什么用 `rememberUpdatedState(onClick)`？
 
 答案：
 
@@ -143,6 +161,7 @@ GestureDetector(
 2. keys 变化时重启手势协程，让块内闭包重新捕获最新外部值；keys 不变则协程一直用旧闭包。
 3. 包裹关系与覆盖层级：先声明的在外层、先测量、绘制在下层；后声明的在内层、覆盖在外层之上。
 4. 因为 `remember` 等 API 只能在组合上下文调用，普通扩展函数没有组合作用域，`composed` 提供了它。
+5. 因为它的 `pointerInput(Unit)` 的 keys 固定不变，手势协程不会重启，块内闭包会一直用组合那一刻捕获的旧 `onClick`；用 `rememberUpdatedState` 包一层后，协程每次读取的都是最新传入的回调。
 
 ## 9. 本章总结
 

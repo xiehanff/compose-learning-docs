@@ -21,16 +21,32 @@
 
 ## 3. 项目源码片段
 
+<!-- compile -->
 ```kotlin
 var showDialog by remember { mutableStateOf(false) }
 var result by remember { mutableStateOf<String?>(null) }
 
 Button(onClick = { showDialog = true }) {
-    Text("弹出弹窗")
+    Text(result ?: "弹出弹窗")
 }
 
 if (showDialog) {
-    AlertDialog(/* ... */)
+    AlertDialog(
+        onDismissRequest = { showDialog = false },
+        title = { Text("选择") },
+        text = { Text("点确定会把结果写回外层状态") },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    result = "已确认"     // 改状态 → 上面的 Text 重组
+                    showDialog = false     // 关弹窗 → if 分支里的内容整块移除
+                },
+            ) { Text("确定") }
+        },
+        dismissButton = {
+            TextButton(onClick = { showDialog = false }) { Text("取消") }
+        },
+    )
 }
 ```
 

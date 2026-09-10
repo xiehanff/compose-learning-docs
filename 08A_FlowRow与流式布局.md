@@ -21,6 +21,11 @@
 
 ## 3. 项目源码片段
 
+<!-- compile decls
+prelude: val selectedTag = "Compose"
+prelude: @Composable
+prelude: fun FlowTag(text: String, selected: Boolean, onClick: () -> Unit) = Unit
+-->
 ```kotlin
 @OptIn(ExperimentalLayoutApi::class) // FlowRow 仍标注为实验 API，必须显式 opt-in
 @Composable

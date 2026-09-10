@@ -29,6 +29,7 @@
 
 圆形进度环：底环用 `drawBehind` 画在内容之下，进度弧用 `drawWithContent` 在 `drawContent()` 之后叠加到内容之上；渐变背景用 `drawWithCache` 缓存 `Brush` 避免每帧重建：
 
+<!-- compile decls -->
 ```kotlin
 @Composable
 fun CircularProgressRing(progress: Float) {  // progress: 0f..1f

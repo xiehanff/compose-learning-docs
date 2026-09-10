@@ -21,6 +21,7 @@
 
 场景：社区 App 的点赞按钮。点击后心形与数字放大一下再回落，背景从透明过渡为主题红。整段动画不需要任何手动进度控制，只声明「目标值」。
 
+<!-- compile decls -->
 ```kotlin
 @Composable
 fun LikeButton(isLiked: Boolean, likeCount: Int, onToggle: () -> Unit) {

@@ -2,7 +2,7 @@
 
 - 预备篇：面向真正零基础读者，完成环境准备、第一次构建、Gradle 基础与构建报错自救。
 - 第 1—45 章：根据 `compose_demo.zip` 源码整理，覆盖 Compose UI 从入门到中级的基础。
-- 第 46—80 章：进阶篇，覆盖重组引擎、动画、自定义绘制/布局/手势、架构、性能、测试与发布。
+- 第 46—80 章：进阶篇，覆盖重组引擎、动画、自定义绘制/布局/手势、架构、性能、测试与发布；并新增 Navigation 3 专题（第 71A 章），介绍当前官方推荐的 Compose 导航方案。
 
 零基础读者必须先完成预备篇，再按编号阅读。已有 Android/Gradle 经验的读者可以从第 1 章开始。
 
@@ -15,6 +15,7 @@
 - `01—45`：独立章节。
 - `08A`：FlowRow 流式布局（基础篇补充章节，接在第 8 章后）。
 - `26A`、`26B`：输入框与选择控件（基础篇补充章节，接在第 26 章后）。
+- `71A`：Navigation 3 与 NavDisplay（进阶篇补充章节，接在第 71 章后）。
 - `99_源码文件索引.md`：从源码文件反查章节。
 
 ## 开始之前：零基础预备篇
@@ -29,7 +30,7 @@
 
 - [第 1 章：MainActivity、ComponentActivity、onCreate 与 setContent](01_MainActivity与setContent.md)
 - [第 2 章：`@Composable` 与 Composable 函数](02_Composable函数.md)
-- [第 3 章：DemoTheme、MaterialTheme 与 CompositionLocalProvider](03_DemoTheme与MaterialTheme.md)
+- [第 3 章：MaterialTheme 与 DemoTheme](03_DemoTheme与MaterialTheme.md)
 - [第 4 章：rememberNavController、NavHost、composable 与路由参数](04_NavHost与路由导航.md)
 - [第 5 章：Lambda、点击回调与 item 到导航的完整链路](05_Lambda点击回调与导航链路.md)
 - [第 6 章：Scaffold、TopAppBar 与内容区 padding](06_Scaffold、TopAppBar与内容区padding.md)
@@ -104,6 +105,7 @@
 - [第 69 章：Hilt 依赖注入](69_Hilt依赖注入.md)
 - [第 70 章：生命周期感知：repeatOnLifecycle 与 LifecycleEventEffect](70_生命周期感知repeatOnLifecycle.md)
 - [第 71 章：导航进阶：嵌套导航图与类型安全导航](71_导航进阶嵌套导航与类型安全导航.md)
+- [第 71A 章：Navigation 3 与 NavDisplay](71A_Navigation3与NavDisplay.md)
 - [第 72 章：状态持久化：rememberSaveable、DataStore 与 Room 的边界](72_状态持久化DataStore与Room.md)
 - [第 73 章：协程进阶：Dispatchers、结构化并发与 Flow 操作符](73_协程进阶Dispatcher与Flow操作符.md)
 - [第 74 章：性能分析：Layout Inspector 与编译器报告](74_性能分析LayoutInspector与编译器报告.md)
@@ -113,3 +115,82 @@
 - [第 78 章：边缘到边缘与 Window Insets](78_边缘到边缘与WindowInsets.md)
 - [第 79 章：响应式布局与 WindowSizeClass](79_响应式布局与WindowSizeClass.md)
 - [第 80 章：无障碍、Baseline Profile 与发布质量](80_无障碍与BaselineProfile与发布质量.md)
+
+## 代码示例编译校验
+
+书里可复制的 Kotlin 示例是否真的能编译，不再靠人工相信：被显式标记的代码块会被
+抽取成真实的 Kotlin 源码，并交给一个只做编译检查的 Android library 模块
+（`snippets/`）编译。未标记的片段（节选、伪代码、依赖项目专属符号）原样保留。
+
+### 对作者：怎么标记
+
+在代码块**前一行**加一个 HTML 注释（渲染后的页面看不到它）：
+
+````markdown
+<!-- compile -->
+```kotlin
+Text("点我")
+```
+````
+
+也可以把标记写进信息串：<code>```kotlin compile</code>。**只有被标记的块才参与校验。**
+
+标记可以带指令：
+
+| 写法 | 含义 |
+| --- | --- |
+| `<!-- compile -->` | 默认：片段被包进 `@Composable fun content()` 函数体，可以直接写语句、局部 `val`、局部 `fun`/`class` |
+| `<!-- compile decls -->` | 片段本身是完整声明（`@Composable fun`、`class`、`enum class`…），作为包装 object 的成员展开（函数体里不允许 `enum`，这种写法必须用它） |
+| `prelude: <一行代码>` | 片段引用到的局部变量在章节上文定义、块内没有时，用它补齐；可写多行，按顺序注入到最前面 |
+
+多行写法示例：
+
+````markdown
+<!-- compile
+prelude: var liked by remember { mutableStateOf(false) }
+-->
+```kotlin
+val scale by animateFloatAsState(if (liked) 1.2f else 1f)
+```
+````
+
+要求：片段自包含（不引用 `ComponentRegistry`、`DemoTheme`、`DemoApp` 这类项目专属
+符号）；`snippets/src/main/kotlin/support/SnippetsSupport.kt` 里提供了设计稿单位
+`.px` / `.pxSp()`（内容照抄项目真实的 `ui/adapter/Px.kt`，保证编译校验用的单位语义
+和章节描述一致）与第 71A 章的 Nav3 路由 key。片段不必写 `import`，生成文件的固定
+import 头已覆盖常用 Compose 包（需要新包时改 `tools/extract_snippets.py` 的
+`IMPORT_HEADER`）；**片段也可以自己写 `import`**，生成时会自动提到文件顶层。
+
+### 本地运行
+
+```bash
+python3 tools/extract_snippets.py                        # 抽取标记片段，产出 snippets/generated_manifest.md
+cd snippets && ./gradlew compileDebugKotlin              # 真实编译；失败会直接报出章节与行号
+cd snippets && ./gradlew compileDebugKotlin -PsnippetsStrictWarnings --rerun-tasks  # 严格编译：把警告当错误
+```
+
+两个编译任务的分工：
+
+| 命令 | 能发现什么 |
+| --- | --- |
+| `compileDebugKotlin` | 片段能否编译（缺 import、API 签名不对、类型不匹配…） |
+| `compileDebugKotlin -PsnippetsStrictWarnings` | 编译警告：主要是**已弃用 API**。生成文件已不再全局 `@file:Suppress("DEPRECATION")` |
+
+注意一个已知边界：生成文件会给每个片段统一加上 `@file:OptIn(...)`（只为让“节选片段”
+能编译），所以“编译通过”**不能证明章节正文说明了某个 API 需要 opt-in**；这部分仍需
+人工核对，用审计模式把它暴露出来：
+
+```bash
+python3 tools/extract_snippets.py --no-file-optin   # 故意不代片段声明 @file:OptIn(...)
+cd snippets && ./gradlew compileDebugKotlin          # 报错信息会指出依赖实验 API 的片段
+```
+
+审计失败不等于错误，只说明“这个片段依赖实验 API”；逐条确认章节里写了 opt-in（例如第 8A 章
+`FlowRow`、第 28 章 `ModalBottomSheet`）即可，跑完记得重新执行不带参数的抽取。同样，片段里
+调用的是局部 `var`、占位符号还是真实 API，编译通过也不能区分——所以章节里的省略写法要尽量
+补齐成真实 API，不要依赖支撑代码里的同名重载。
+
+`snippets/generated_manifest.md` 列出章号、行号、片段首行与生成文件，便于回溯；生成的 Kotlin
+源码位于 `snippets/src/main/kotlin/generated/`（已 gitignore，每次重新生成）。
+需要有 Android SDK（`ANDROID_HOME` 或 `snippets/local.properties` 里的 `sdk.dir`，
+需含 platform 36）与 JDK 17+。CI 见 `.github/workflows/snippet-compile.yml`，push / PR 自动跑同一套检查。

@@ -1,0 +1,54 @@
+name: snippet-compile
+
+# 从章节 Markdown 里抽取被标记的 Kotlin 代码块，真实跑一遍 Kotlin/Compose 编译。
+# 失败即视为书里的示例已经不能编译，需要修章节或修支撑代码。
+on:
+  push:
+    paths:
+      - "*.md"
+      - "tools/extract_snippets.py"
+      - "snippets/**"
+      - ".github/workflows/snippet-compile.yml"
+  pull_request:
+    paths:
+      - "*.md"
+      - "tools/extract_snippets.py"
+      - "snippets/**"
+      - ".github/workflows/snippet-compile.yml"
+  workflow_dispatch:
+
+jobs:
+  compile-snippets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: android-actions/setup-android@v3
+        with:
+          # 第 71A 章的 Navigation 3 依赖要求 compileSdk 36，CI 里显式装这个 platform。
+          packages: "platforms;android-36 build-tools;36.0.0"
+
+      - name: 抽取片段
+        run: python3 tools/extract_snippets.py
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: 编译校验
+        working-directory: snippets
+        run: ./gradlew --no-daemon compileDebugKotlin
+
+      - name: 严格编译校验（把警告当错误，用于发现已弃用 API）
+        working-directory: snippets
+        run: ./gradlew --no-daemon compileDebugKotlin -PsnippetsStrictWarnings --rerun-tasks
+
+      - name: 上传编译清单
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: snippet-manifest
+          path: snippets/generated_manifest.md

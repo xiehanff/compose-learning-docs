@@ -19,6 +19,9 @@
 
 ## 3. 项目源码片段
 
+<!-- compile
+prelude: val index = 0
+-->
 ```kotlin
 Box(Modifier.fillMaxWidth().height(156.px)) {
     Box(

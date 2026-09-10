@@ -25,6 +25,7 @@
 
 场景：一个播放/暂停按钮。状态在两个枚举值之间切换时，图标大小、颜色、缩放三个属性必须**同时、协调地**变化——播放态大而红，暂停态小而蓝。
 
+<!-- compile decls -->
 ```kotlin
 enum class PlayState { Playing, Paused }
 

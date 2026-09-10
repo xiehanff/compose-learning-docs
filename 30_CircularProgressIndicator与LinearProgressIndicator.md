@@ -19,19 +19,22 @@
 
 ## 3. 项目源码片段
 
+<!-- compile
+prelude: val progress = 0.35f
+-->
 ```kotlin
 CircularProgressIndicator()
 LinearProgressIndicator(Modifier.fillMaxWidth())
 
 LinearProgressIndicator(
-    progress = progress.coerceIn(0f, 1f),
+    progress = { progress.coerceIn(0f, 1f) }, // lambda 重载：进度延迟读取，不会因为进度变化而重组调用方
     modifier = Modifier.fillMaxWidth(),
 )
 ```
 
 ## 4. 逐步解释
 
-不传 progress 时是循环动画，表示任务正在进行但不知道比例；传 0f..1f 时是确定进度，例如 0.35f 表示 35%。指示器只读取状态并绘制，不会自动下载、计时或修改 progress。
+不传 progress 时是循环动画，表示任务正在进行但不知道比例；传 0f..1f 时是确定进度，例如 0.35f 表示 35%。确定进度推荐写成 lambda 形式 `progress = { progress }`：进度值延迟到绘制时才读取，进度变化不会让调用方重组。旧的非 lambda 重载（`progress = 0.35f`）已弃用。指示器只读取状态并绘制，不会自动下载、计时或修改 progress。
 
 业务层应产生进度 State，UI 订阅并传入。超出范围的值应限制。完成后应切换到成功内容，失败时显示错误和重试，而不是永远停留在 loading。
 
