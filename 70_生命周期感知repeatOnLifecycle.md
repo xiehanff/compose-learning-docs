@@ -6,7 +6,7 @@
 
 - 理解 Lifecycle 状态机：CREATED、STARTED、RESUMED 的升降关系
 - 用 `repeatOnLifecycle` 让协程块随生命周期反复进入与退出
-- 知道 `collectAsStateWithLifecycle` 底层就是 repeatOnLifecycle
+- 理解 `collectAsStateWithLifecycle` 是生命周期感知收集的高层封装，知道它与 `repeatOnLifecycle` 的关系但不把二者当作完全等价 API
 - 用 `LifecycleEventEffect` 处理事件型副作用（如进入前台上报）
 
 ## 2. 项目中的位置
@@ -46,7 +46,7 @@ class MainActivity : ComponentActivity() {
 ```kotlin
 @Composable
 fun MainScreen(viewModel: MainViewModel = viewModel()) {
-    // 内部实现就是 repeatOnLifecycle(STARTED) + collect
+    // 常见默认行为是以 STARTED 作为最低活跃状态的生命周期感知收集
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     // 事件型副作用：每次进入 RESUMED 时上报一次
@@ -79,7 +79,7 @@ class Tracker(
 
 **repeatOnLifecycle 的语义。** `lifecycleScope.launch { repeatOnLifecycle(state) { ... } }`：当生命周期升到目标状态时，启动块内的协程；降到目标状态之下时，取消块内协程（连同它启动的子协程）；再次升上来时重新启动。这个「反复进入/退出」正是前后台切换的写照：退后台取消收集，回前台重新收集，天然避免后台空跑与资源浪费。记住：块内协程是「随状态生、随状态死」，外层 launch 一次，内层反复执行。
 
-**collectAsStateWithLifecycle 的底层。** 它就是 `repeatOnLifecycle(Lifecycle.State.STARTED) { flow.collect { ... } }` 加上把最新值转成 State 的封装，并自动使用 LocalLifecycleOwner 提供的 Lifecycle。因此组合里收集 StateFlow 直接用这一个函数，不需要手写 repeatOnLifecycle。记住：UI 收集状态，一个 collectAsStateWithLifecycle 就够了。
+**collectAsStateWithLifecycle 的定位。** 它是基于生命周期感知机制、把 Flow 转为 Compose `State` 的高层封装，常见默认行为以 `STARTED` 作为最低活跃状态，并使用 `LocalLifecycleOwner`。可以把它与 `repeatOnLifecycle` 联系起来理解，但不要把二者当作完全等价的替换：前者还负责 State 的产生、初始值和组合生命周期集成。组合里收集 UI 状态通常优先用它；一次性事件、导航事件或需要自定义收集策略的 Flow 仍需单独设计。使用前需引入 `lifecycle-runtime-compose`。
 
 **LifecycleEventEffect 与事件型副作用。** 有些逻辑不是「持续收集」而是「每次发生某事件时执行一次」：统计上报、埋点、启动动画、恢复轮询。LifecycleEventEffect(ON_RESUME) 在每次到达该事件时执行块，对应的还有 LifecycleStartEffect 等。它与 repeatOnLifecycle 的区别：repeatOnLifecycle 管「持续块」的启停，LifecycleEventEffect 管「事件触发的一次性动作」。记住：持续收集用 repeatOnLifecycle，单次动作用 LifecycleEventEffect。
 
@@ -141,15 +141,17 @@ class LifecycleAwareState extends State<AppLifecycleDemo>
 ## 8. 本章检查题
 
 1. repeatOnLifecycle(STARTED) 在什么时机启动块内协程、什么时机取消？
-2. collectAsStateWithLifecycle 的底层实现是什么？
+2. 应该如何理解 collectAsStateWithLifecycle 与 repeatOnLifecycle 的关系？
 3. LifecycleEventEffect(ON_RESUME) 适合什么场景？与 repeatOnLifecycle 的区别是什么？
 
 答案：
 
 1. 生命周期升到 STARTED 时启动，降到 STARTED 之下（如退后台）时取消；再次升上来重新启动，直到生命周期永久销毁。
-2. 内部是 repeatOnLifecycle(Lifecycle.State.STARTED) 包裹 flow.collect，把最新值转成 Compose State，并使用 LocalLifecycleOwner 的 Lifecycle。
+2. 它是生命周期感知地收集 Flow 并转换为 Compose State 的高层封装，常见默认状态是 STARTED。它与 repeatOnLifecycle 有相同的“低于活跃状态暂停收集”的目标，但还包含初始值、State 生成和组合生命周期集成，不能简单视为手写 repeatOnLifecycle 的完全等价实现。
 3. 适合「每次事件发生执行一次」的动作，如进入前台埋点上报、恢复轮询；repeatOnLifecycle 管理持续协程块的启停，LifecycleEventEffect 管理事件触发的一次性动作。
+
+官方参考：[Lifecycle-aware coroutines](https://developer.android.com/topic/libraries/architecture/coroutines)、[State and Jetpack Compose](https://developer.android.com/develop/ui/compose/state)。前者说明 `repeatOnLifecycle`，后者说明生命周期感知的状态收集。
 
 ## 9. 本章总结
 
-生命周期感知的本质是把协程的生死绑定到可见性：repeatOnLifecycle 让持续收集随 STARTED 反复进入退出，collectAsStateWithLifecycle 是它的组合封装，LifecycleEventEffect 处理事件型单次动作。记住：后台不干活、回前台接着干，是生命周期感知的唯一目标。
+生命周期感知的本质是把协程的生死绑定到可见性：repeatOnLifecycle 管理持续协程块随 STARTED 反复进入退出，collectAsStateWithLifecycle 提供把 Flow 转为 Compose State 的高层收集 API，LifecycleEventEffect 处理事件型动作。状态流与一次性事件的消费语义不同，不能只凭“都能 collect”就互相替换。记住：后台不干活、回前台接着干，是生命周期感知的唯一目标。

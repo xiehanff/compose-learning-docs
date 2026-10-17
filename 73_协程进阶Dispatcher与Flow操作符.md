@@ -83,13 +83,13 @@ LaunchedEffect(listState) {
 
 ## 4. 逐步解释
 
-1. 三个 Dispatcher：Main 是 Android 主线程，UI 更新必须在这；IO 是专为磁盘 / 网络设计的弹性线程池，阻塞 IO 再多也不怕；Default 是 CPU 密集线程池（线程数约等于核数），适合 JSON 解析、排序、图片缩放这类重计算。挂起函数（如 Retrofit 的 suspend 接口、Room 的 suspend 查询）内部一般已切好线程，你真正要关心的是「谁在跑 CPU 重活」。
+1. 三个 Dispatcher：Main 通常用于 Android 主线程上的 UI 工作；IO 适合可能阻塞的磁盘/网络操作；Default 适合 CPU 密集计算。线程数和调度细节以当前 Kotlin 协程实现为准，不应把它们理解成严格的业务线程保证。特别要区分“挂起”和“切线程”：`suspend` 只表示函数可以挂起，不会自动把普通阻塞代码移到后台。Retrofit、Room 等库通常会为自己的阻塞工作提供调度，但自定义 `suspend` 函数仍必须由实现者或调用方决定执行上下文。
 
 2. withContext 与 flowOn：`withContext(Dispatchers.Default) { ... }` 把一段代码临时切到指定线程池，执行完自动切回原上下文；`flowOn` 是 Flow 版的「上游切换」——它只影响之前的上游操作符，之后的代码回到原上下文。位置放错，线程就切错地方，这是 Flow 最常见的坑之一。
 
 3. 结构化并发：`coroutineScope { }` 是一个「子任务容器」：它等所有子任务完成才返回；任何一个子任务失败，其余子任务全部取消、异常向上抛。`supervisorScope` 相反：子任务失败不影响兄弟任务，各自独立。**怎么选：一个结果依赖多个请求（并行合并）用 coroutineScope；多个互不相关的任务（一个失败不拖累别人）用 supervisorScope。** 永远不要用 GlobalScope 起协程——它没有父作业，页面销毁后没人取消它，泄漏和崩溃都从这里来。
 
-4. 取消是协作的：协程不会因为 `cancel()` 就立刻停，只有协程代码「配合」才响应：调用 suspend 函数（内部检查取消），或主动检查 `isActive` / `ensureActive()`。死循环里没有任何挂起点，取消就无效——这就是「协作取消」。catch 捕获到 `CancellationException` 后必须重新抛出，否则取消被吞掉，协程继续跑。
+4. 取消是协作的：协程不会因为 `cancel()` 就立刻停，只有协程代码「配合」才响应：调用会检查取消的挂起函数，或主动检查 `isActive` / `ensureActive()`。没有挂起点且不检查取消的长循环可能继续运行。捕获到 `CancellationException` 后通常应继续传播，除非有明确的取消转换边界，否则吞掉它会破坏结构化取消语义。
 
 5. Flow 操作符速记：map / filter 做转换过滤；`catch` 只捕获它上游产生的异常，不会捕获 `collect` 下游代码抛出的异常；`try/catch` 包住 `collect` 可以捕获整个收集调用向外抛出的异常。retry 负责按策略重试；flowOn 切换上游上下文；distinctUntilChanged 去重；conflate 在消费者跟不上时保留较新的值；combine 合并多个流的最新值。冷流通常在每次 collect 时重新执行，可以发出一个或多个值；StateFlow/SharedFlow 是热流，但其上游是否运行还取决于创建方式和 SharingStarted 策略。
 
@@ -125,9 +125,9 @@ Future<DetailUiState> loadDetail(int id) async {
 final json = await compute(parseJson, raw); // compute() 在后台 isolate 执行
 ```
 
-本质区别：Dart 没有内置的「结构化并发作用域」——coroutineScope / supervisorScope 那种「父管子、子失败全取消」的语义要靠自己实现；Dart 里 unawaited 的 Future 出错是静默的（未处理异常），而 Kotlin 里结构化并发保证错误一定传播到作用域边界。所以 Flutter 里「页面销毁后还在跑的异步任务」要靠 widget 生命周期手动取消，Kotlin 则是 viewModelScope / LaunchedEffect 声明式搞定。
+本质区别：Dart 的 Future API 与 Kotlin 的 coroutineScope / supervisorScope 不是同一套结构化并发模型，父子取消和失败传播不能直接一一对应；未等待 Future 的异常处理也取决于 Dart 代码和运行环境，不能简单概括为“静默”。Flutter 里页面销毁后的任务通常需要显式结合生命周期取消，Kotlin 则可以使用 viewModelScope / LaunchedEffect 等结构化作用域，但库调用和自定义任务仍需正确处理取消。
 
-记住：Kotlin 的并发是「树状的」（作用域），Dart 的并发是「平铺的」（每个 Future 独立），前者错误不会漏，后者要自己兜底。
+可以用“父子作用域”帮助理解 Kotlin 结构化并发，但不能据此保证异常不会遗漏；`launch`、`async` 和 supervisor 的异常处理责任不同。Dart 的 Future 链和 Zone 也有异常传播规则，两者都需要明确处理错误与取消。
 
 ## 7. 常见错误
 
@@ -147,11 +147,13 @@ final json = await compute(parseJson, raw); // compute() 在后台 isolate 执�
 
 答案：
 
-1. Main：主线程，UI 更新必须在 Main；IO：磁盘 / 网络等阻塞型 IO 的弹性线程池；Default：CPU 密集计算的线程池（线程数约等于核数）。
+1. `Main` 通常对应 Android 主线程上的 UI 工作；`IO` 适合阻塞型磁盘/网络操作；`Default` 适合 CPU 密集计算。它们是调度意图，不应当作所有实现和底层线程细节的绝对保证；线程数与调度细节以当前 Kotlin 协程版本为准。
 2. coroutineScope 中任一子任务失败会取消全部子任务并把异常抛给外层；supervisorScope 中一个子任务失败不影响兄弟任务。按「失败要不要连坐」选择。
 3. flowOn 影响它之前的上游操作符的执行线程，之后的下游回到原上下文；放错位置会导致重活在错误线程执行，或想切 collect 线程却无效。
-4. cancel() 只发「取消信号」，协程要在挂起点（suspend 函数）或主动检查 isActive / ensureActive() 时才响应；不配合的代码（如无挂起点的死循环）取消无效。
+4. cancel() 请求取消，代码需调用支持取消的挂起函数，或主动检查 isActive / ensureActive() 才能及时响应。suspend 标记本身不保证检查取消；没有挂起点也不检查取消的长循环可能继续运行。
+
+官方参考：[Coroutine context and dispatchers](https://kotlinlang.org/docs/coroutine-context-and-dispatchers.html)、[Cancellation and timeouts](https://kotlinlang.org/docs/cancellation-and-timeouts.html)、[Asynchronous Flow](https://kotlinlang.org/docs/flow.html)。
 
 ## 9. 本章总结
 
-协程进阶的核心是三件事：用对调度器让「UI、IO、CPU」各归其位，用结构化并发让「任务随作用域生、随作用域灭」，用 Flow 操作符把数据管道拼得干净利落。记住「取消是协作的、错误是传播的、线程是声明式的」这三句话，就不会写出泄漏与崩溃。
+协程进阶的核心是三件事：用对调度器让「UI、IO、CPU」各归其位，用结构化并发让「任务随作用域生、随作用域灭」，用 Flow 操作符把数据管道拼得干净利落。还需分别确认取消是否被检查、异常由谁处理，以及实际工作运行在哪个上下文；这些检查用于降低泄漏与崩溃风险。

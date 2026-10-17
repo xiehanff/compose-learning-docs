@@ -63,4 +63,6 @@ dependencies {
     implementation(libs.androidx.navigation3.ui)
     implementation(libs.androidx.lifecycle.viewmodel.navigation3)
     implementation(libs.kotlinx.serialization.core)
+    // 第 79 章 WindowSizeClass 响应式示例；断点常量（WIDTH_DP_*_LOWER_BOUND）来自其传递的 androidx.window:window-core。
+    implementation(libs.androidx.material3.adaptive)
 }

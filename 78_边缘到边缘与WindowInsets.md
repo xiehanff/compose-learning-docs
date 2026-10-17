@@ -79,9 +79,9 @@ fun ChatPage() {
 
 2. WindowInsets 是什么：它是系统向应用描述"屏幕被系统元素占用多少"的数据类，每个 insets 包含四个方向的值。常见类型：systemBars（状态栏 + 导航栏）、displayCutout（挖孔/刘海区域）、ime（软键盘），以及把底层类型打包起来的三个「安全」类型。注意 safeDrawing 不是独立的系统数据，而是 systemBars、displayCutout 与 ime 的并集，即 `safeDrawing = systemBars ∪ displayCutout ∪ ime`，代表「内容不该被别的东西盖住」的区域——注意它把软键盘也算进去了。另外两个安全类型：safeGestures 是手势容易和系统手势冲突的区域（systemGestures、mandatorySystemGestures、waterfall、tappableElement 的并集），适合包住要滑动的组件；safeContent 是 safeDrawing 与 safeGestures 的并集，视觉与手势都不冲突。
 
-3. 三种 modifier 的分工：windowInsetsPadding(insets) 按指定 insets 给组件加 padding；displayCutoutPadding() 只处理挖孔区域；imePadding() 只跟随键盘高度，键盘收起时为 0。关键点是这些 modifier 是响应式的——insets 变化（旋转、键盘弹出、折叠屏展开）会自动触发重组重新计算 padding，无需手动监听。
+3. 三种 modifier 的分工：windowInsetsPadding(insets) 按指定 insets 给组件加 padding；displayCutoutPadding() 只处理挖孔区域；imePadding() 只跟随键盘高度，键盘收起时为 0。关键点是这些 modifier 是响应式的——insets 变化（旋转、键盘弹出、折叠屏展开）会驱动布局阶段更新 padding，无需手动监听；内置 insets modifier 不要求每次变化都通过重组处理。
 
-4. Scaffold 的 insets 行为（最容易误解的一段，务必分清）：`contentWindowInsets` 的默认值来自 `ScaffoldDefaults.contentWindowInsets`（系统栏类 insets），不是 `safeDrawing`。而且 Scaffold **不会自己把 insets 应用到内容上**——它只是把这些 insets 算成一个 `PaddingValues`（也就是 content lambda 的 `innerPadding`）交给你，官方原话是："Scaffold does not apply the insets to content; this responsibility is yours."，应用与否是你的责任。上下方向还要看有没有栏，官方原话是："Scaffold will take the insets into account from the top/bottom only if the `topBar`/`bottomBar` are not present, as the scaffold expects `topBar`/`bottomBar` to handle insets instead."，即有对应方向的 topBar / bottomBar 时，该方向的 insets 由栏自己处理，`innerPadding` 主要剩下栏与内容之间的间距和没有栏的方向的安全区。此外，已经被子布局或 `consumeWindowInsets` 消费过的 insets 会从 `contentWindowInsets` 中排除；正确写法是给内容根同时用 `padding(innerPadding)` 与 `consumeWindowInsets(innerPadding)`，既应用了间距，又告诉内层「这份 insets 已经用掉了」。
+4. Scaffold 的 insets 行为（最容易误解的一段，务必分清）：`contentWindowInsets` 的默认值来自 `ScaffoldDefaults.contentWindowInsets`（系统栏类 insets），不是 `safeDrawing`。而且 Scaffold **不会自己把 insets 应用到内容上**——它只是把这些 insets 算成一个 `PaddingValues`（也就是 content lambda 的 `innerPadding`）交给你，官方原话是："Scaffold does not apply the insets to content; this responsibility is yours."，应用与否是你的责任。上下方向还要看有没有栏，官方原话是："Scaffold will take the insets into account from the top/bottom only if the `topBar`/`bottomBar` are not present, as the scaffold expects `topBar`/`bottomBar` to handle insets instead."，即有对应方向的 topBar / bottomBar 时，该方向的 insets 由栏自己处理，`innerPadding` 主要剩下栏与内容之间的间距和没有栏的方向的安全区。此外，已经被祖先布局消费过的 insets 会从 `contentWindowInsets` 中排除；正确写法是给内容根同时用 `padding(innerPadding)` 与 `consumeWindowInsets(innerPadding)`，既应用了间距，又告诉内层「这份 insets 已经用掉了」。
 
 5. consumeWindowInsets：当一个组件已消费（应用）了 insets，内层组件再读同一 insets 会重复计算。Modifier.consumeWindowInsets(insets) 标记"这段 insets 已处理"，让内层不再叠加。典型场景是 Scaffold 的 bottomBar 里嵌套需要 imePadding 的输入区。
 
@@ -128,7 +128,7 @@ final bottom = MediaQuery.viewInsetsOf(context).bottom; // 键盘高度
 
 相似点：核心思想一致——"系统占用的区域是动态数据，布局根据它调整"；SafeArea 与 windowInsetsPadding 用途相同；键盘 inset 的处理目标相同。
 
-本质区别：Compose 把 insets 建模为 WindowInsets 对象，通过 modifier 声明式消费，变化自动触发重组；Flutter 的 SafeArea / MediaQuery 是"读一次值"的查询式 API，键盘变化依赖 Scaffold 的 resize 机制或手动监听。另外 Flutter 没有 consume 概念——子组件各自读 MediaQuery，容易出现重复 padding，需要手动组织结构。
+机制区别：Compose 把 insets 建模为 WindowInsets 对象，通过 modifier 应用和消费，内置 modifier 可在布局阶段响应变化。Flutter 的 `MediaQuery.*Of(context)` 会建立依赖，相应窗口数据变化时会触发依赖组件重建；`SafeArea` 还会调整后代可见的 MediaQuery padding，避免同一安全区重复避让。键盘可由 Scaffold 的 resize 行为或基于 viewInsets 的布局处理，两端都应明确哪一层负责避让。
 
 ## 7. 常见错误
 
@@ -148,10 +148,18 @@ final bottom = MediaQuery.viewInsetsOf(context).bottom; // 键盘高度
 答案：
 
 1. safeDrawing = systemBars ∪ displayCutout ∪ ime，即状态栏、导航栏、挖孔/刘海区域与软键盘的并集，是「内容不该被其它东西盖住」的安全区域。（相关：safeGestures 是手势冲突区域，safeContent = safeDrawing ∪ safeGestures。）
-2. windowInsetsPadding 本质上是动态的 padding——它按当前 insets 计算 padding 值，insets 变化时自动重组更新，等价于"随时保持正确的 padding"；普通 padding 是写死的。
+2. windowInsetsPadding 在布局阶段按当前尚未消费的 insets 应用间距，并向后代消费相应部分；普通 padding 应用传入的 Dp/PaddingValues，不会自动读取或消费 WindowInsets，传入值也可以随状态变化。
 3. 解决软键盘弹出遮挡输入框的问题。通常加在输入框自身或其直接父容器（如 Column）上，键盘弹出时内容自动上移。
 4. 因为 Scaffold 的 contentWindowInsets 默认取 `ScaffoldDefaults.contentWindowInsets`，它只把结果作为 innerPadding 交给我们、并不会自己应用；如果已经用了 innerPadding 再手动加 windowInsetsPadding 就会得到双重间距。正确做法是内容根用 `padding(innerPadding)` + `consumeWindowInsets(innerPadding)`；只有非 Scaffold 的自定义页面才需要从零手写 insets 处理。
 
 ## 9. 本章总结
 
-edge-to-edge 从 Android 15（targetSdk 35）起被强制、到 Android 16（targetSdk 36）连 opt-out 都被废弃并禁用，应用不再有「不参与」的选项，WindowInsets 因此成为这套体系的地基：systemBars、displayCutout、ime 等底层类型描述系统占用，safeDrawing（= systemBars ∪ displayCutout ∪ ime）、safeGestures、safeContent 三个安全类型把常用组合打包，windowInsetsPadding、imePadding、consumeWindowInsets 三个 modifier 声明式消费它们。Scaffold 只负责把 insets 算成 innerPadding 交给你、并让对应方向的 topBar / bottomBar 自己处理该方向的 insets，应用与否是你的责任；自定义页面时手动处理并避免重复消费，才能做出既沉浸又不出错的界面。
+在 Android 15 设备上，targetSdk 35 及以上应用开始受到 edge-to-edge 强制规则约束；在 Android 16 设备上，targetSdk 36 及以上应用也无法通过旧 opt-out 属性退出。系统版本与 targetSdk 必须一起判断，WindowInsets 因此成为这套体系的地基：systemBars、displayCutout、ime 等底层类型描述系统占用，safeDrawing（= systemBars ∪ displayCutout ∪ ime）、safeGestures、safeContent 三个安全类型把常用组合打包，windowInsetsPadding、imePadding、consumeWindowInsets 三个 modifier 声明式消费它们。Scaffold 只负责把 insets 算成 innerPadding 交给你、并让对应方向的 topBar / bottomBar 自己处理该方向的 insets，应用与否是你的责任；自定义页面时手动处理并避免重复消费，才能做出既沉浸又不出错的界面。
+
+> 说明：WindowInsets 的默认值、消费规则和 Material 组件行为具有 API 版本语境。本文按 Android Jetpack Compose/Material 3 的本仓库基线讲解；升级依赖后应重新核对 `Scaffold`、系统栏处理和导航栏组件的官方 API 文档。
+
+官方资料：
+
+- [Handle insets in Compose](https://developer.android.com/develop/ui/compose/system/insets)
+- [WindowInsets API reference](https://developer.android.com/reference/kotlin/androidx/compose/foundation/layout/WindowInsets)
+- [Edge-to-edge](https://developer.android.com/develop/ui/views/layout/edge-to-edge)

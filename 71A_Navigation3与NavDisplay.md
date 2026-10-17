@@ -2,7 +2,7 @@
 
 ## 1. 本章目标
 
-掌握当前官方推荐的新一代 Compose 导航方案 Navigation 3（简称 Nav3），理解它「你拥有返回栈」的核心心智模型，并知道它与本书第 [4 章](04_NavHost与路由导航.md)、第 [71 章](71_导航进阶嵌套导航与类型安全导航.md) 所讲的 Nav2 有什么区别、各自适合什么场景。
+掌握基于本仓库版本基线的 Navigation 3（简称 Nav3），理解它“你拥有返回栈”的核心心智模型，并知道它与本书第 [4 章](04_NavHost与路由导航.md)、第 [71 章](71_导航进阶嵌套导航与类型安全导航.md) 所讲的 Nav2 有什么区别、各自适合什么场景。Navigation 3 的 API 和推荐实践仍应以对应版本的官方文档为准。
 
 学完后，你应当能够：
 
@@ -33,7 +33,7 @@ Nav3 由若干构件组成，职责划分如下：
 | `androidx.compose.material3.adaptive:adaptive-navigation3` | 自适应布局用的 `SceneStrategy` / `Scene` 与 metadata 定义 |
 | `org.jetbrains.kotlinx:kotlinx-serialization-core` + 序列化插件 | 让路由 key 可以被序列化保存 |
 
-两点版本要求：**Nav3 需要 `compileSdk = 36` 或更高**；Nav3 已有稳定版 1.1.x（本章以 1.1.4 为例）。
+本章版本快照：`navigation3` 使用 1.1.4，`lifecycle-viewmodel-navigation3` 使用 2.11.0，示例工程使用 `compileSdk = 36`；这些是本仓库基线（见 [文档基线与审校规范](文档基线与审校规范.md)），不是永久版本结论。官方入门文档当前要求使用 Navigation 3 时将 `compileSdk` 设置为 36 或更高；升级依赖时应重新检查该要求。
 
 ## 3. 项目源码片段
 
@@ -41,20 +41,22 @@ Nav3 由若干构件组成，职责划分如下：
 
 **第一步：加依赖**（`gradle/libs.versions.toml`）：
 
+以下保留本章最小示例用到的构件；`adaptive-navigation3` 仅在实现自适应场景策略时另行添加。序列化插件版本应与项目 Kotlin 插件版本一致，这里与仓库基线统一为 2.3.21。
+
 ```toml
 [versions]
 nav3Core = "1.1.4"
 lifecycleViewmodelNav3 = "2.11.0"
 kotlinxSerializationCore = "1.9.0"
-material3AdaptiveNav3 = "1.3.0-rc01"
-kotlinSerialization = "2.2.21"
+kotlinSerialization = "2.3.21"
 compileSdk = "36"
+
+# 版本快照：2026-10-17；升级依赖后请重新核对 API 和官方要求。
 
 [libraries]
 androidx-navigation3-runtime = { module = "androidx.navigation3:navigation3-runtime", version.ref = "nav3Core" }
 androidx-navigation3-ui = { module = "androidx.navigation3:navigation3-ui", version.ref = "nav3Core" }
 androidx-lifecycle-viewmodel-navigation3 = { module = "androidx.lifecycle:lifecycle-viewmodel-navigation3", version.ref = "lifecycleViewmodelNav3" }
-androidx-material3-adaptive-navigation3 = { group = "androidx.compose.material3.adaptive", name = "adaptive-navigation3", version.ref = "material3AdaptiveNav3" }
 kotlinx-serialization-core = { module = "org.jetbrains.kotlinx:kotlinx-serialization-core", version.ref = "kotlinxSerializationCore" }
 
 [plugins]
@@ -70,14 +72,13 @@ plugins {
 }
 
 android {
-    compileSdk = 36   // Nav3 要求 compileSdk 36 或更高
+    compileSdk = 36   // 本示例基线；官方入门文档要求 Nav3 使用 36 或更高
 }
 
 dependencies {
     implementation(libs.androidx.navigation3.runtime)
     implementation(libs.androidx.navigation3.ui)
     implementation(libs.androidx.lifecycle.viewmodel.navigation3)
-    implementation(libs.androidx.material3.adaptive.navigation3)
     implementation(libs.kotlinx.serialization.core)
 }
 ```
@@ -308,10 +309,14 @@ class MyRouterDelegate extends RouterDelegate<Object> with ChangeNotifier {
 4. lambda 写法用 `when (key)` 自己覆盖每种 key，并用 `NavEntry(key) { ... }` 构造条目，控制力强但要手写分支；DSL 写法用 `entry<Home> { ... }` 声明，代码更短，泛型参数指明 key 类型，并**自带未命中 key 的默认行为**（默认抛异常，可传 fallback 自定义）。
 5. `NavDisplay` 默认用单栏策略（`SinglePaneSceneStrategy`）只显示**栈顶**那一个条目。`sceneStrategies` 是一个策略列表，用来决定「一次渲染列表里的哪些条目」，换成自适应策略即可实现列表 + 详情的多栏布局。
 6. `rememberSaveableStateHolderNavEntryDecorator()` 让条目内的 `rememberSaveable` 正常工作，使其状态能跨配置变化与进程死亡恢复；`rememberViewModelStoreNavEntryDecorator()` 为每个条目创建 `ViewModelStore`，让 `viewModel()` 的作用域绑定到条目，并在条目出栈时清理。
-7. 因为 Nav3 的 API 用到了 compileSdk 36 才提供的平台能力（官方入门文档明确要求 `compileSdk` 升到 36 或更高）。compileSdk 低于 36 时，依赖解析或编译会失败。
+7. 因为官方 Navigation 3 入门文档要求 `compileSdk` 36 或更高，本章按此配置。该要求本身不能证明库使用了某一项 Android 16 平台能力，也不等于把最低运行版本 minSdk 提高到 36。
 
 ## 9. 本章总结
 
-Navigation 3 是专门为 Jetpack Compose 设计的新导航库，已有稳定版 1.1.x。它的核心心智模型只有一句话：**你拥有返回栈**——返回栈是一个可观察列表，里面放的是可序列化的类型化 key，`add` 就是前进、`removeLastOrNull` 就是返回；`NavDisplay` 观察这个列表，把栈顶 key 交给 `entryProvider`，得到 `NavEntry` 并渲染。`entryDecorators` 负责给条目补上保存状态与 ViewModel 作用域，`sceneStrategies` 决定单栏还是自适应多栏，`transitionSpec` / metadata DSL 负责转场定制，而 `compileSdk 36` 是入场门槛。
+官方参考：[Navigation 3 入门](https://developer.android.com/guide/navigation/navigation-3/get-started)、[Navigation 3 发布说明](https://developer.android.com/jetpack/androidx/releases/navigation3)。
+
+> 本章的版本号和稳定性表述均是版本快照，不应替代当前官方发布说明。升级 Navigation 3 或相关 Compose/AndroidX 依赖后，请重新检查构件名称、API、compileSdk 要求和保存状态行为。
+
+Navigation 3 是专门为 Jetpack Compose 设计的新导航库。本章基于 1.1.4 版本快照讲解；它的核心心智模型只有一句话：**你拥有返回栈**——返回栈是一个可观察列表，里面放的是可序列化的类型化 key，`add` 就是前进、`removeLastOrNull` 就是返回；`NavDisplay` 观察这个列表，把栈顶 key 交给 `entryProvider`，得到 `NavEntry` 并渲染。`entryDecorators` 负责给条目补上保存状态与 ViewModel 作用域，`sceneStrategies` 决定单栏还是自适应多栏，`transitionSpec` / metadata DSL 负责转场定制，而 `compileSdk 36` 是入场门槛。
 
 与 Nav2 的关系不是替代，而是演进：Nav2 用字符串路由 + `NavHost`，库替你管返回栈，存量项目广泛；Nav3 用类型化 key + `NavDisplay`，你自己管返回栈，适合全新的 Compose 项目。对照 Flutter：Nav3 的「自己持有返回栈」在思路上接近声明式的 `Router` / `Navigator.pages`，而不是命令式的 `Navigator.push`；`go_router` 仍是字符串路径，这一点与 Nav2 一脉相承。

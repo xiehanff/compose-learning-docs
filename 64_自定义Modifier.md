@@ -9,7 +9,7 @@
 - 用 `Modifier.layout` 修改测量与放置
 - 用 `Modifier.drawBehind` / `drawWithContent` 在链中绘制
 - 用 `Modifier.pointerInput` 接收手势（手势检测的完整规则在第 65 章）
-- 理解 modifier 链顺序的意义，用 `composed` 封装有状态 modifier
+- 理解 modifier 链顺序的意义；知道 `composed` 是兼容性/易懂写法，生产级高频自定义节点应了解 `Modifier.Node`
 
 ## 2. 项目中的位置
 
@@ -18,7 +18,8 @@
 - `androidx.compose.ui.layout.layout`
 - `androidx.compose.ui.draw.drawBehind` / `drawWithContent`
 - `androidx.compose.ui.input.pointer.pointerInput`
-- `androidx.compose.ui.composed`
+- `androidx.compose.ui.composed`（短小、需要组合上下文的兼容性写法）
+- `Modifier.Node` / `ModifierNodeElement`（生产级自定义节点的推荐方向）
 - `androidx.compose.foundation.gestures.detectTapGestures`（点按识别器，第 65 章详解）
 
 ## 3. 项目源码片段
@@ -105,11 +106,11 @@ fun Modifier.pressHighlight(): Modifier = composed {
 
 上面的 `expandClickArea` 还有两个容易踩的坑：`layout` 里修改约束时必须保证修改后的最小值不超过最大值（父级可能已经把最大尺寸卡得很小），报给父级的尺寸也要用 `constraints.constrainWidth/Height` 夹回父约束，否则会违反约束；因为 `Icon` 自带的 `size(24.dp)` 排在调用方 modifier 的后面（更靠内），所以扩展热区的 modifier 要写在固定尺寸之前，写成 `Modifier.size(24.dp).expandClickArea(...)` 就没有扩展空间了。
 
-`Modifier.composed { ... }` 让 modifier 工厂函数获得组合上下文——里面可以调用 `remember`、`LocalDensity.current` 等。普通扩展函数不能调用 remember（没有组合作用域），所以**有状态的 modifier 必须用 composed 封装**。注意 composed 本身有开销（每次组合都执行 lambda），简单无状态 modifier 用普通函数即可。
+`Modifier.composed { ... }` 让 modifier 工厂函数获得组合上下文——里面可以调用 `remember`、`LocalDensity.current` 等。它适合教学、兼容旧实现或确实需要直接读取组合上下文的短小 Modifier，但本身有组合开销，不能把它当作所有有状态 Modifier 的必选方案。官方当前更推荐用 `Modifier.Node` / `ModifierNodeElement` 构建可复用、高性能的自定义节点；Node 实现通过 `create/update` 管理参数，并按需实现绘制、布局或指针接口。普通无状态组合优先直接组合已有 Modifier。
 
 modifier 链的顺序意义：链按声明顺序从外到内包裹，**先声明的在外层、后声明的在内层**。对 layout 类 modifier，外层先测量、其约束包裹内层结果；对内层内容，绘制时先声明的画在更下层、后声明的覆盖其上。比如 `padding().background()` 与 `background().padding()` 的绘制结果不同——顺序错了，背景就画不到 padding 区域。
 
-记住：**有状态用 composed，测量/绘制/输入三层各用各的 modifier，顺序决定包裹与覆盖关系。**
+记住：**先判断是否能组合已有 Modifier；需要自定义节点时优先考虑 Modifier.Node；短小示例才用 composed。测量、绘制、输入各有自己的 Modifier 能力，顺序决定包裹与覆盖关系。**
 
 ## 5. 实际执行过程
 
@@ -152,7 +153,7 @@ GestureDetector(
 1. `layout` modifier 能修改什么？
 2. `pointerInput` 的 keys 参数起什么作用？
 3. modifier 的顺序影响什么？
-4. 为什么有状态的 modifier 必须用 `composed` 封装？
+4. `composed` 和 `Modifier.Node` 分别解决什么问题？为什么不能把 `composed` 当成所有有状态 modifier 的唯一方案？
 5. `expandClickArea` 为什么用 `rememberUpdatedState(onClick)`？
 
 答案：
@@ -160,9 +161,11 @@ GestureDetector(
 1. 测量与放置：可以改测量时的约束（撑大/收紧）、改子项测量结果、改放置位置，从而影响尺寸与热区。
 2. keys 变化时重启手势协程，让块内闭包重新捕获最新外部值；keys 不变则协程一直用旧闭包。
 3. 包裹关系与覆盖层级：先声明的在外层、先测量、绘制在下层；后声明的在内层、覆盖在外层之上。
-4. 因为 `remember` 等 API 只能在组合上下文调用，普通扩展函数没有组合作用域，`composed` 提供了它。
+4. `composed` 为短小实现提供组合上下文，能使用 `remember` 和 CompositionLocal；但它有组合开销。生产级自定义节点通常使用 `Modifier.Node` / `ModifierNodeElement`，由节点生命周期和更新机制承载状态。
 5. 因为它的 `pointerInput(Unit)` 的 keys 固定不变，手势协程不会重启，块内闭包会一直用组合那一刻捕获的旧 `onClick`；用 `rememberUpdatedState` 包一层后，协程每次读取的都是最新传入的回调。
+
+官方参考：[Create custom modifiers](https://developer.android.com/develop/ui/compose/custom-modifiers)，包括组合已有 Modifier、Composable 工厂及 `Modifier.Node` 的选择与迁移说明。
 
 ## 9. 本章总结
 
-自定义 modifier 就是「可复用的装饰器」：layout 改测量与放置、drawBehind/drawWithContent 参与绘制、pointerInput 收手势，有状态时用 composed 提供组合上下文。记住链顺序决定包裹与覆盖关系，即可把布局、绘制、交互封装成一行可复用的 API。
+自定义 modifier 就是可复用的装饰器：layout 改测量与放置、drawBehind/drawWithContent 参与绘制、pointerInput 收手势。简单示例可用 `composed`，但它不是有状态 Modifier 的唯一或长期推荐实现；性能敏感的生产代码应进一步学习 `Modifier.Node`。记住链顺序决定包裹与覆盖关系，即可把布局、绘制、交互封装成一行可复用的 API。

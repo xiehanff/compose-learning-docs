@@ -2,7 +2,7 @@
 
 ## 1. 本章目标
 
-理解环境值如何沿组合树向下提供，以及覆盖范围为何只限子树。
+理解环境值如何沿组合树向下提供，以及覆盖范围为何只限子树；知道用 LocalDensity 做设计稿适配时存在全局影响。
 
 学完后，你应当能够：
 
@@ -44,7 +44,7 @@ fontSize = demoTheme.listItemTextPx.pxSp()
 
 CompositionLocal 是沿组合树向下传播的环境值。子节点读取 LocalDensity.current 时，会找到离自己最近的 Provider；父节点和兄弟子树不受内部覆盖影响。离开 Provider 范围后恢复外层值。提供端用 `provides` 挂值，读取端用 `.current` 取最近一层的值，两边的名字必须对应。
 
-项目同样用 LocalDemoTheme 提供 Demo 尺寸配置（第 3 章）：子组件写 `val demoTheme = LocalDemoTheme.current`，拿到的是最近一层 `LocalDemoTheme provides ...` 提供的 `DemoThemeConfig`。此机制适合主题、密度、语言等跨大量层级的环境信息，但会形成隐式依赖，不应取代所有明确业务参数。它也不是修改设备或线程的全局 density。
+项目同样用 LocalDemoTheme 提供 Demo 尺寸配置（第 3 章）：子组件写 `val demoTheme = LocalDemoTheme.current`，拿到的是最近一层 `LocalDemoTheme provides ...` 提供的 `DemoThemeConfig`。此机制适合主题、密度、语言等跨大量层级的环境信息，但会形成隐式依赖，不应取代所有明确业务参数。它也不是修改设备或线程的全局 density。特别是覆盖 `LocalDensity` 会影响整个子树的普通 Dp、Material 默认尺寸和第三方组件，因此设计稿适配必须限定范围并明确无障碍取舍。
 
 ## 5. 实际执行过程
 

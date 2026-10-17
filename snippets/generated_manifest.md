@@ -8,12 +8,12 @@
 **不代表章节正文已说明需要 opt-in**；弃用 API 也不会在普通编译里报错，
 由独立严格编译发现：`./gradlew compileDebugKotlin -PsnippetsStrictWarnings --rerun-tasks`。
 
-共 59 个片段待校验。
+共 61 个片段待校验。
 
 | 生成文件 | 章号 | 来源（文件:行号） | 模式 | 片段首行 |
 | --- | --- | --- | --- | --- |
 | `Ch07_01.kt` | Ch07 | `07_Modifier的本质、作用范围与调用顺序.md:27` | body | `Text(` |
-| `Ch08A_01.kt` | Ch08A | `08A_FlowRow与流式布局.md:30` | decls | `@OptIn(ExperimentalLayoutApi::class) // FlowRow 仍标注为实验 API，必须显式 opt-in` |
+| `Ch08A_01.kt` | Ch08A | `08A_FlowRow与流式布局.md:30` | decls | `@Composable` |
 | `Ch08_01.kt` | Ch08 | `08_Column、Row、Arrangement与Alignment.md:25` | body | `Column(` |
 | `Ch09_01.kt` | Ch09 | `09_Box、层叠布局与FlutterStack.md:25` | body | `Box(` |
 | `Ch10_01.kt` | Ch10 | `10_Card、Surface与容器组件的区别.md:30` | body | `Card(` |
@@ -41,8 +41,8 @@
 | `Ch33_01.kt` | Ch33 | `33_Compose中模拟FlutterIndexedStack.md:26` | body | `Box(Modifier.fillMaxWidth().height(156.px)) {` |
 | `Ch44_01.kt` | Ch44 | `44_.px与.pxSp()扩展属性和函数.md:28` | decls | `val Number.px: Dp` |
 | `Ch44_02.kt` | Ch44 | `44_.px与.pxSp()扩展属性和函数.md:44` | body | `Column(` |
-| `Ch46_01.kt` | Ch46 | `46_重组的跳过机制与位置记忆.md:30` | decls | `@Composable` |
-| `Ch46_02.kt` | Ch46 | `46_重组的跳过机制与位置记忆.md:57` | body | `@Composable` |
+| `Ch46_01.kt` | Ch46 | `46_重组的跳过机制与位置记忆.md:31` | decls | `@Composable` |
+| `Ch46_02.kt` | Ch46 | `46_重组的跳过机制与位置记忆.md:59` | body | `@Composable` |
 | `Ch48_01.kt` | Ch48 | `48_derivedStateOf派生状态.md:31` | body | `val listState = rememberLazyListState()` |
 | `Ch49_01.kt` | Ch49 | `49_rememberUpdatedState与rememberCoroutineScope.md:29` | decls | `@Composable` |
 | `Ch51_01.kt` | Ch51 | `51_animateAsState与Tween基础动画.md:26` | decls | `@Composable` |
@@ -61,14 +61,16 @@
 | `Ch62_01.kt` | Ch62 | `62_自定义Layout与measure与place.md:29` | body | `@Composable` |
 | `Ch63_01.kt` | Ch63 | `63_Constraints与固有尺寸测量.md:29` | body | `@Composable` |
 | `Ch63_02.kt` | Ch63 | `63_Constraints与固有尺寸测量.md:56` | body | `Layout(content = { Child() }) { measurables, constraints ->` |
-| `Ch64_01.kt` | Ch64 | `64_自定义Modifier.md:30` | body | `fun Modifier.expandClickArea(` |
-| `Ch64_02.kt` | Ch64 | `64_自定义Modifier.md:78` | body | `fun Modifier.pressHighlight(): Modifier = composed {` |
+| `Ch64_01.kt` | Ch64 | `64_自定义Modifier.md:31` | body | `fun Modifier.expandClickArea(` |
+| `Ch64_02.kt` | Ch64 | `64_自定义Modifier.md:79` | body | `fun Modifier.pressHighlight(): Modifier = composed {` |
 | `Ch65_01.kt` | Ch65 | `65_手势检测pointerInput.md:66` | body | `Modifier.pointerInput(Unit) {` |
-| `Ch71A_01.kt` | Ch71A | `71A_Navigation3与NavDisplay.md:89` | decls | `import androidx.navigation3.runtime.NavKey` |
-| `Ch71A_02.kt` | Ch71A | `71A_Navigation3与NavDisplay.md:103` | decls | `import androidx.compose.material3.Button` |
-| `Ch71A_03.kt` | Ch71A | `71A_Navigation3与NavDisplay.md:158` | body | `NavDisplay(` |
+| `Ch71A_01.kt` | Ch71A | `71A_Navigation3与NavDisplay.md:90` | decls | `import androidx.navigation3.runtime.NavKey` |
+| `Ch71A_02.kt` | Ch71A | `71A_Navigation3与NavDisplay.md:104` | decls | `import androidx.compose.material3.Button` |
+| `Ch71A_03.kt` | Ch71A | `71A_Navigation3与NavDisplay.md:159` | body | `NavDisplay(` |
 | `Ch75_01.kt` | Ch75 | `75_Lazy列表性能优化.md:33` | decls | `@Composable` |
 | `Ch75_02.kt` | Ch75 | `75_Lazy列表性能优化.md:75` | decls | `@Composable` |
 | `Ch78_01.kt` | Ch78 | `78_边缘到边缘与WindowInsets.md:55` | body | `@Composable` |
+| `Ch79_01.kt` | Ch79 | `79_响应式布局与WindowSizeClass.md:28` | decls | `import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2` |
+| `Ch79_02.kt` | Ch79 | `79_响应式布局与WindowSizeClass.md:119` | body | `BoxWithConstraints {` |
 | `Ch80_01.kt` | Ch80 | `80_无障碍与BaselineProfile与发布质量.md:29` | body | `// 有意义的图片：读屏会朗读 contentDescription` |
 

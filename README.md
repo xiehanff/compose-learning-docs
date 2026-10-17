@@ -1,8 +1,10 @@
 # Compose 项目完整学习文档（预备篇 + 第 1—80 章）
 
+> 本仓库的版本基线、平台边界、证据等级和审校规则见 [文档基线与审校规范](文档基线与审校规范.md)。正文中的 API 状态和版本结论都应以该文件及 `snippets/gradle/libs.versions.toml` 为准。
+
 - 预备篇：面向真正零基础读者，完成环境准备、第一次构建、Gradle 基础与构建报错自救。
 - 第 1—45 章：根据 `compose_demo.zip` 源码整理，覆盖 Compose UI 从入门到中级的基础。
-- 第 46—80 章：进阶篇，覆盖重组引擎、动画、自定义绘制/布局/手势、架构、性能、测试与发布；并新增 Navigation 3 专题（第 71A 章），介绍当前官方推荐的 Compose 导航方案。
+- 第 46—80 章：进阶篇，覆盖重组引擎、动画、自定义绘制/布局/手势、架构、性能、测试与发布；并新增 Navigation 3 专题（第 71A 章），按仓库版本基线介绍其 Compose 导航模型；不构成对所有项目的无条件迁移建议。
 
 零基础读者必须先完成预备篇，再按编号阅读。已有 Android/Gradle 经验的读者可以从第 1 章开始。
 
@@ -17,6 +19,16 @@
 - `26A`、`26B`：输入框与选择控件（基础篇补充章节，接在第 26 章后）。
 - `71A`：Navigation 3 与 NavDisplay（进阶篇补充章节，接在第 71 章后）。
 - `99_源码文件索引.md`：从源码文件反查章节。
+- `阶段项目_文章列表与详情.md`：第 68—80 章后的动手任务书（教学任务书，仓库不含对应源码工程）。
+- `文档基线与审校规范.md`：版本、来源、平台边界与验证范围。
+
+## 平台和内容边界
+
+本仓库的目标是 **Android Jetpack Compose**。`Activity`、AndroidX Lifecycle、Hilt、WindowInsets、Navigation 3 等内容不能直接推导为 Compose Multiplatform、Desktop、Wear OS 或 Android TV 的通用结论。第 1—45 章依赖原 `compose_demo` 的源码背景；第 46—80 章使用通用 API 示例。文档不提供完整业务 App，也不以“看完所有 API”代替真实项目中的网络、错误处理、模块化和发布验证。
+
+## 验证范围
+
+仓库对显式标记的 Kotlin 片段执行真实编译，并在 CI 中重复检查。编译通过只说明当前版本下片段能通过语法、类型和依赖解析；它不证明运行时行为、状态恢复、导航返回栈、视觉布局、无障碍、性能或真实设备兼容性。需要验证这些性质时，应使用 Compose UI 测试、仪器测试、Macrobenchmark、真机和人工验收。详见 [文档基线与审校规范](文档基线与审校规范.md)。
 
 ## 开始之前：零基础预备篇
 
@@ -115,6 +127,7 @@
 - [第 78 章：边缘到边缘与 Window Insets](78_边缘到边缘与WindowInsets.md)
 - [第 79 章：响应式布局与 WindowSizeClass](79_响应式布局与WindowSizeClass.md)
 - [第 80 章：无障碍、Baseline Profile 与发布质量](80_无障碍与BaselineProfile与发布质量.md)
+- [阶段项目：文章列表与详情（任务书）](阶段项目_文章列表与详情.md)
 
 ## 代码示例编译校验
 
@@ -185,12 +198,14 @@ python3 tools/extract_snippets.py --no-file-optin   # 故意不代片段声明 @
 cd snippets && ./gradlew compileDebugKotlin          # 报错信息会指出依赖实验 API 的片段
 ```
 
-审计失败不等于错误，只说明“这个片段依赖实验 API”；逐条确认章节里写了 opt-in（例如第 8A 章
-`FlowRow`、第 28 章 `ModalBottomSheet`）即可，跑完记得重新执行不带参数的抽取。同样，片段里
+审计失败不等于错误，只说明“这个片段依赖实验 API”；逐条确认章节里写了 opt-in（例如第 28 章
+`ModalBottomSheet`）即可，跑完记得重新执行不带参数的抽取。同样，片段里
 调用的是局部 `var`、占位符号还是真实 API，编译通过也不能区分——所以章节里的省略写法要尽量
 补齐成真实 API，不要依赖支撑代码里的同名重载。
 
 `snippets/generated_manifest.md` 列出章号、行号、片段首行与生成文件，便于回溯；生成的 Kotlin
 源码位于 `snippets/src/main/kotlin/generated/`（已 gitignore，每次重新生成）。
+UI 测试、Macrobenchmark 和 Baseline Profile 的测试模块示例未纳入本工程的 `compileDebugKotlin` 校验；未标记的结构示例也不参与编译。
+第 79 章示例额外依赖 `androidx.compose.material3.adaptive:adaptive:1.3.0-rc01`（不在 Compose BOM 管理内，已在 `snippets/gradle/libs.versions.toml` 显式声明并纳入编译；片段内的 ListPane/DetailPane/MainContent 为教学占位组件）。
 需要有 Android SDK（`ANDROID_HOME` 或 `snippets/local.properties` 里的 `sdk.dir`，
 需含 platform 36）与 JDK 17+。CI 见 `.github/workflows/snippet-compile.yml`，push / PR 自动跑同一套检查。
