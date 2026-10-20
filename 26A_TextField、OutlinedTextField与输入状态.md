@@ -14,6 +14,8 @@
 - 用 `InputTransformation` 过滤输入，用 `OutputTransformation` 只做显示格式化
 - 用 `isError` + `supportingText` 做校验反馈
 - 用 `SecureTextField` 写密码框，并理解为什么不需要 `dispose`
+- 用 `imeAction` 定制软键盘动作键，并分别在两种写法里响应用户按键（`keyboardActions` / `onKeyboardAction`）
+- 用 `FocusRequester` 程序化把焦点交给指定输入框
 
 ## 2. 项目中的位置
 
@@ -21,7 +23,7 @@
 
 示例包含三个输入框：姓名（label + placeholder）、年龄（数字键盘 + 输入过滤）、手机号（11 位数字校验 + 错误提示），下方还有实时回显与校验结果。
 
-需要点明一个事实：项目里的 `TextFieldDemo.kt` 目前用的是 **value-based** 写法（`value` + `onValueChange` + `remember { mutableStateOf("") }`）。它没有错，官方仍然支持；但官方当前明确推荐 **state-based**，并提供了从 value-based 迁移的文档。所以本章主线讲 state-based，同时保留 value-based 作为对照——一是让你能读懂旧项目，二是官方迁移文档的重点恰好就是两者的换算关系。
+需要点明一个事实：项目里的 `TextFieldDemo.kt` 目前用的是 **value-based** 写法（`value` + `onValueChange` + `remember { mutableStateOf("") }`）。它没有错，官方仍然支持；但官方当前明确推荐 **state-based**，并提供了从 value-based 迁移的[文档](https://developer.android.com/develop/ui/compose/text/migrate-state-based)（基线边界：本仓库 snippets 工程解析的 material3 版本为 1.4.0，这套 API 已完整可用）。所以本章主线讲 state-based，同时保留 value-based 作为对照——一是让你能读懂旧项目，二是官方迁移文档的重点恰好就是两者的换算关系。
 
 阅读路线：初读先看本节项目源码与基础输入/校验，再理解 `TextFieldState` 如何保存文本和选区；后面的迁移与外部同步属于进阶部分。IME 是输入法编辑器（软键盘与输入法的输入过程）；UDF 是单向数据流，即事件传入、状态流出，第 68 章展开。`snapshotFlow` 的基础见第 50 章，ViewModel 同步见第 68 章，生命周期收集见第 70 章；首次阅读可以跳过这些跨章节组合例子，学完相应章节再回看。
 
@@ -211,6 +213,57 @@ OutlinedTextField(
 
 **校验反馈。** 逻辑和原来完全一样：`phoneValid = phone.length == 11 && phone.all { it.isDigit() }`，再用 `phoneError = phone.isNotEmpty() && !phoneValid`，这样“一进页面还没输入”时不会立刻报红。把 `phoneError` 传给 `isError`，描边和标签自动变错误色；`supportingText` 是输入框下方的辅助说明区，`isError = true` 时它也会自动使用错误色，于是同一处可以显示“手机号必须是 11 位数字”或“已输入 x/11 位”。
 
+**键盘动作：`imeAction` 与两种响应方式。** `KeyboardOptions` 除了 `keyboardType`，还有 `imeAction`：它决定软键盘右下角动作键显示什么、按下算什么动作——`ImeAction.Search` 显示搜索键、`ImeAction.Done` 表示完成、`ImeAction.Next` 用于多栏表单跳到下一栏。要“响应用户按了这个键”，两种写法的参数不同：value-based 用 `keyboardActions = KeyboardActions(onSearch = { ... })`，每个动作一个回调；state-based 没有 `keyboardActions` 参数，对应参数是 `onKeyboardAction: KeyboardActionHandler`——一个只有 `onKeyboardAction` 方法的接口，Kotlin 里这类单方法接口可以用 lambda 简写（SAM 转换）：`KeyboardActionHandler { performDefaultAction -> ... }`；不拦截默认行为时调用 `performDefaultAction()` 交还给组件。`keyboardOptions` 本身两种写法通用。与 `keyboardType` 一样，`imeAction` 也只是对输入法的提示，输入法可以不理会，业务永远不要只靠它保证流程。
+
+**程序化焦点：`FocusRequester`。** 三步走：`remember { FocusRequester() }` 创建；`Modifier.focusRequester(requester)` 挂到目标输入框；在事件回调或 `LaunchedEffect` 里调用 `requestFocus(...)`——绝不能在组合主体里直接调用，否则每次重组都会重复请求。一个版本敏感点：在本仓库基线（ui 1.11.3）中，无参的 `requestFocus()` 已弃用，推荐带方向参数的 `requestFocus(FocusDirection.Enter)`，方向信息还能帮助无障碍服务正确播报焦点变化。焦点详解见[官方文档](https://developer.android.com/develop/ui/compose/touch-input/focus/request-focus)。
+
+下面把两者合在一个可独立运行的搜索框里。初始界面：一个搜索输入框、一个「聚焦搜索框」按钮。操作：点按钮，焦点与软键盘跳到输入框；输入任意文字后按软键盘右下角的搜索键。期望观察：底部出现「已触发搜索：xxx」；再次点按钮，焦点回到输入框。
+
+<!-- compile -->
+```kotlin
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.focusRequester
+
+var keyword by remember { mutableStateOf("") }
+var searched by remember { mutableStateOf(false) }
+val searchFocus = remember { FocusRequester() } // 第一步：创建并记住 requester
+
+Column(verticalArrangement = Arrangement.spacedBy(12.px)) {
+    OutlinedTextField(
+        value = keyword,                       // value-based 写法，与项目现有代码一致
+        onValueChange = { keyword = it },
+        label = { Text("搜索关键词") },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+        keyboardActions = KeyboardActions(
+            onSearch = { searched = true },    // 用户按软键盘搜索键时触发
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .focusRequester(searchFocus),      // 第二步：关联到这个输入框
+    )
+    Button(
+        onClick = { searchFocus.requestFocus(FocusDirection.Enter) }, // 第三步：事件回调里请求焦点
+    ) { Text("聚焦搜索框") }
+    if (searched) Text("已触发搜索：$keyword")
+}
+```
+
+state-based 版本只需换掉两处参数（节选，`keywordState` / `searched` 沿用同类状态，`KeyboardOptions` / `ImeAction` 同上）：
+
+```kotlin
+// 节选：state-based 的键盘动作不走 keyboardActions，改传 onKeyboardAction
+OutlinedTextField(
+    state = keywordState,
+    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+    onKeyboardAction = KeyboardActionHandler { performDefaultAction ->
+        performDefaultAction() // 不拦截默认行为；需要时再接自己的逻辑
+        searched = true
+    },
+)
+```
+
 **需要程序性改文本时。** 用 state 的方法，而不是去改一个字符串变量：
 
 ```kotlin
@@ -286,6 +339,10 @@ void dispose() {
 - 把 `placeholder` 当 `label` 用，聚焦后占位文字消失、用户不知道这一栏填什么
 - 沿用 Flutter 习惯在 Compose 里找 `dispose`：两种写法都没有需要业务代码释放的资源
 - 旧代码里看到 `value + onValueChange` 就以为过时了：它仍然受支持，只是新代码优先 state-based
+- 在组合主体里直接调 `requestFocus(...)`：应在事件回调或 `LaunchedEffect` 中调用，否则每次重组重复执行
+- 忘了把 `Modifier.focusRequester(...)` 挂到目标输入框，调用 `requestFocus` 时报 `FocusRequester is not initialized`
+- 在 state-based 重载里找 `keyboardActions` 参数：它只属于 value-based，state-based 用 `onKeyboardAction`（`KeyboardActionHandler`）
+- 以为 `imeAction` 能保证用户「必须完成动作」：输入法可以不响应它，业务校验仍要自己做
 
 ## 8. 本章检查题
 
@@ -297,6 +354,9 @@ void dispose() {
 6. 想用代码把文本改成 `"13800000000"`、想在组合外监听文本变化，分别怎么做？
 7. `KeyboardOptions(keyboardType = KeyboardType.Number)` 能保证用户只输入数字吗？应该怎么做？
 8. 项目里 `phoneError` 为什么写成 `phone.isNotEmpty() && !phoneValid` 而不是直接 `!phoneValid`？为什么不需要 `dispose`？
+9. 想让软键盘右下角显示搜索键，并在用户按下时触发搜索，value-based 与 state-based 分别用哪些参数？
+10. `FocusRequester` 的三步是什么？为什么不能在组合主体里调用 `requestFocus`？
+11. 动手：给上面的搜索框例子加一个「清除」按钮，点击后清空 `keyword`、把 `searched` 复位为 `false`，并重新聚焦输入框。
 
 答案：
 
@@ -308,7 +368,19 @@ void dispose() {
 6. 程序性修改用 `state.setTextAndPlaceCursorAtEnd(text)`，或按选区做复杂编辑时用 `state.edit { ... }`（接收者是 `TextFieldBuffer`）；组合外观察变化用 `snapshotFlow { state.text }`。
 7. 不能。它只是提示系统弹出哪种键盘，粘贴、硬件键盘等仍可能带进非数字字符。业务上要用 `InputTransformation`（或 value-based 下在 `onValueChange` 里）过滤。
 8. 如果直接取反，一进页面还没输入时 `phoneValid` 就是 `false`，输入框会立刻变红；加上 `isNotEmpty()` 后只有「已输入且不合法」才报错。不需要 `dispose` 是因为两种写法都没有业务代码要释放的资源：value-based 只是普通状态，state-based 的 `TextFieldState` 也是由 `rememberTextFieldState` 管理的纯数据状态持有者。
+9. 两种写法都用 `keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search)` 提示输入法；响应动作 value-based 用 `keyboardActions = KeyboardActions(onSearch = { ... })`，state-based 用 `onKeyboardAction = KeyboardActionHandler { performDefaultAction -> ... }`（单方法接口，SAM 写法）。
+10. `remember { FocusRequester() }` 创建、`Modifier.focusRequester(...)` 关联目标组件、在事件回调或 `LaunchedEffect` 里调用 `requestFocus(FocusDirection.Enter)`。组合主体每次重组都会执行，直接调用会反复请求焦点；另外基线（ui 1.11.3）中无参 `requestFocus()` 已弃用，要带方向参数。
+11. 参考实现：
+
+```kotlin
+// 节选：在 Column 里追加一个按钮，searchFocus / keyword / searched 沿用上文
+OutlinedButton(onClick = {
+    keyword = ""
+    searched = false
+    searchFocus.requestFocus(FocusDirection.Enter)
+}) { Text("清除") }
+```
 
 ## 9. 本章总结
 
-Compose 输入框当前推荐 state-based：`rememberTextFieldState()` 创建 `TextFieldState`（自带 `rememberSaveable` 级别的保存恢复），`state =` 是唯一入口，文本从 `state.text` 读，界面自动重组；密码框用 `SecureTextField(state = ...)`。行数用 `lineLimits`，键盘用 `KeyboardOptions(keyboardType = ...)`，输入过滤用 `InputTransformation`（内置 `maxLength`，自定义在 `TextFieldBuffer` 上用 `delete` / `replace` / `revertAllChanges`，可 `.then(...)` 串联，结果会写入 state），显示格式化用 `OutputTransformation`（不改 state、不用算 offset mapping）。`isError` + `supportingText` 做校验反馈，程序性改文本用 `setTextAndPlaceCursorAtEnd` / `edit { }`，组合外观察用 `snapshotFlow`。`value + onValueChange` 仍然受支持，定位是旧项目与简单场景——项目里的 `TextFieldDemo.kt` 目前就是这种写法；对照 Flutter 的 `TextField` + `TextEditingController` + `inputFormatters`，能最清楚地看出「谁持有文本、谁负责过滤、谁负责释放」这三件事在两边的分工差别。
+Compose 输入框当前推荐 state-based：`rememberTextFieldState()` 创建 `TextFieldState`（自带 `rememberSaveable` 级别的保存恢复），`state =` 是唯一入口，文本从 `state.text` 读，界面自动重组；密码框用 `SecureTextField(state = ...)`。行数用 `lineLimits`，键盘用 `KeyboardOptions(keyboardType = ...)`，输入过滤用 `InputTransformation`（内置 `maxLength`，自定义在 `TextFieldBuffer` 上用 `delete` / `replace` / `revertAllChanges`，可 `.then(...)` 串联，结果会写入 state），显示格式化用 `OutputTransformation`（不改 state、不用算 offset mapping）。`isError` + `supportingText` 做校验反馈，程序性改文本用 `setTextAndPlaceCursorAtEnd` / `edit { }`，组合外观察用 `snapshotFlow`。键盘动作键用 `imeAction`，响应方式 value-based 是 `keyboardActions`、state-based 是 `onKeyboardAction`；程序化焦点用 `FocusRequester` 三步（创建、挂修饰符、事件回调里 `requestFocus(FocusDirection.Enter)`）。`value + onValueChange` 仍然受支持，定位是旧项目与简单场景——项目里的 `TextFieldDemo.kt` 目前就是这种写法；对照 Flutter 的 `TextField` + `TextEditingController` + `inputFormatters`，能最清楚地看出「谁持有文本、谁负责过滤、谁负责释放」这三件事在两边的分工差别。
