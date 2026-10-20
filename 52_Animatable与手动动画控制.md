@@ -247,7 +247,7 @@ val offsetX = Animatable(0f)
 
 ```kotlin
 // 编译错误：挂起函数只能在协程中调用
-button.onClick { offsetX.animateTo(300f) }
+Button(onClick = { offsetX.animateTo(300f) }) { Text("播放") }
 ```
 
 `animateTo`、`snapTo` 都是挂起函数。普通回调里用 `rememberCoroutineScope().launch { ... }` 包起来。
@@ -275,3 +275,8 @@ button.onClick { offsetX.animateTo(300f) }
 ## 9. 本章总结
 
 `Animatable` 把动画从"状态变化自动触发"升级为"代码显式驱动"：`snapTo` 瞬移、`animateTo` 播放且挂起等待完成，配合协程可以精确编排"先播放、后回调"的时序。理解它与 `animate*AsState` 的分工（隐式 vs 显式）后，就能按场景选择正确的动画控制方式。
+
+官方参考：
+
+- [Animatable API](https://developer.android.com/reference/kotlin/androidx/compose/animation/core/Animatable)
+- [Animation in Compose（手动动画控制）](https://developer.android.com/develop/ui/compose/animation)

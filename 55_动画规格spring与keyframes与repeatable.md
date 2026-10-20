@@ -15,8 +15,8 @@
 
 涉及的 androidx 包与官方 API：
 
-- `androidx.compose.animation.core`：`AnimationSpec`、`tween`、`spring`、`keyframes`、`repeatable`、`infiniteRepeatable`、`RepeatMode`、`FastOutSlowInEasing`、`LinearEasing`、`CubicBezierEasing`、`Spring`、`rememberInfiniteTransition`（无限动画入口，第 56 章详解）
-- `androidx.compose.animation`：`togetherWith`、`animateFloatAsState`
+- `androidx.compose.animation.core`：`AnimationSpec`、`tween`、`spring`、`keyframes`、`repeatable`、`infiniteRepeatable`、`RepeatMode`、`FastOutSlowInEasing`、`LinearEasing`、`CubicBezierEasing`、`Spring`、`animateFloatAsState`、`rememberInfiniteTransition`（无限动画入口，第 56 章详解）
+- `androidx.compose.animation`：`togetherWith`
 
 ## 3. 项目源码片段
 
@@ -45,7 +45,7 @@ prelude: val loading = false
 val progress by animateFloatAsState(
     targetValue = if (loading) 1f else 0f,
     animationSpec = keyframes {
-        durationMillis = 2000               // 总时长必须显式设置
+        durationMillis = 2000               // 总时长建议显式设置（块内默认 300ms）
         0f at 0 using LinearEasing
         0.4f at 500 using FastOutSlowInEasing
         0.7f at 1200 using LinearEasing
@@ -126,7 +126,7 @@ spring(
 
 ```kotlin
 keyframes {
-    durationMillis = 2000    // 总时长（必填）
+    durationMillis = 2000    // 总时长（应显式设置，块内默认 300ms）
     0f at 0 using LinearEasing
     0.4f at 500 using FastOutSlowInEasing
     0.7f at 1200 using LinearEasing
@@ -136,7 +136,9 @@ keyframes {
 
 注意 `at` 后面是**绝对毫秒位置**（相对总时长），不是百分比；段与段之间自动插值。具体曲线用 `using` 指定（旧写法 `with` 已弃用，它不返回关键帧实体，无法复用到其它 keyframes 构造器）。适合"先快后慢再冲刺"这种非均匀节奏，或"前 70% 是 A 动作、后 30% 是 B 动作"的编排。
 
-记住：`keyframes` 是"时间点 → 值 → 曲线"的表格，`durationMillis` 必须设置。
+还要注意：`durationMillis` 不写也能编译——块内自带默认总时长（本仓库基线下为 300ms，即 `DefaultDurationMillis`）。漏写时你按 500ms、1200ms 写的关键帧会落在默认时长之外而不生效，动画的总时长与节奏都和预期不符，所以**应显式设置**，只是编译器不会替你发现这个遗漏。
+
+记住：`keyframes` 是"时间点 → 值 → 曲线"的表格，`durationMillis` 必须显式设置才可靠。
 
 ### 4.5 `repeatable` 与 `infiniteRepeatable`
 
@@ -236,7 +238,17 @@ spring(dampingRatio = 0.2f, stiffness = Spring.StiffnessLow)
 
 ### 错误 3：`keyframes` 忘记设置 `durationMillis`
 
-`keyframes` 块中 `durationMillis` 是必填的（它决定 `at` 时间点的绝对基准），漏写会编译报错或无法定义时长。
+```kotlin
+// 不报错，但块内默认总时长是 300ms：
+// 500/1200/2000ms 处的关键帧全部落在默认时长之外，不会生效
+keyframes {
+    0f at 0
+    0.4f at 500
+    1f at 2000
+}
+```
+
+`keyframes` 块中 `durationMillis` 不是语法上的必填项（漏写不编译报错，走默认总时长），但业务上应视为必填：它决定 `at` 时间点的绝对基准，漏写后超出默认时长的关键帧形同虚设，具体插值表现以当前版本实现为准。
 
 ### 错误 4：混淆 `repeatable` 与 `infiniteRepeatable`
 
@@ -266,3 +278,8 @@ animateFloatAsState(1f, infiniteRepeatable(tween(500)))
 ## 9. 本章总结
 
 `AnimationSpec` 家族是 Compose 动画的"物理/时间引擎选择器"：`tween` 管固定时长的缓动、`spring` 管物理回弹、`keyframes` 管分段节奏、`repeatable`/`infiniteRepeatable` 管循环。选规格的核心是匹配场景手感——跟手回弹用 spring、节奏编排用 keyframes、匀速无限循环用 tween + LinearEasing。规格与动画入口（AsState、Animatable、Transition）正交组合，构成了 Compose 完整的动画能力。
+
+官方参考：
+
+- [Animation specs（Animation in Compose）](https://developer.android.com/develop/ui/compose/animation)
+- [AnimationSpec API](https://developer.android.com/reference/kotlin/androidx/compose/animation/core/AnimationSpec)

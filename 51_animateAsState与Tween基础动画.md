@@ -13,8 +13,8 @@
 
 进阶篇不再局限于 compose_demo 项目，本章使用通用 Compose API。
 
-- `androidx.compose.animation`：animateColorAsState、animateSizeAsState、animateOffsetAsState、animateIntAsState
-- `androidx.compose.animation.core`：animateFloatAsState、animateDpAsState、tween、FastOutSlowInEasing
+- `androidx.compose.animation`：animateColorAsState（Color 的类型转换器定义在 animation 包）
+- `androidx.compose.animation.core`：animateFloatAsState、animateDpAsState、animateSizeAsState、animateOffsetAsState、animateIntAsState、tween、FastOutSlowInEasing
 - `androidx.compose.ui.graphics.graphicsLayer`、`androidx.compose.foundation.background`：仅用于把动画值应用到 UI
 
 ## 3. 项目源码片段
@@ -60,6 +60,7 @@ fun LikeButton(isLiked: Boolean, likeCount: Int, onToggle: () -> Unit) {
 
 场景二：卡片折叠/展开时宽度平滑变化。尺寸必须用 Dp 专用 API，避免手动换算。
 
+<!-- compile decls -->
 ```kotlin
 @Composable
 fun ExpandableCard(expanded: Boolean) {
@@ -82,13 +83,13 @@ fun ExpandableCard(expanded: Boolean) {
 
 2. **返回值是 State<T>**：函数返回 `State<Float>`、`State<Dp>` 等，配合 `by` 委托解包成普通值。值被谁读取，动画就作用在谁身上——同一个 scale 既能喂给 scaleX 也能喂给 alpha，一个动画驱动多处。
 
-3. **内部机制**：该 API 自带 `remember`，首次组合时创建一个内部动画对象（本质是 Animatable）并立即 snapTo 到初始 targetValue。之后每次重组发现 targetValue 与当前值不同，就自动启动动画，从当前值插值到新目标。这就是「隐式动画」：你只管目标，过程交给系统。
+3. **内部机制**：该 API 自带 `remember`，首次组合时创建一个内部动画对象（本质是 `Animatable`，第 52 章的主角）并把初始 targetValue 作为起始值。之后每次重组发现 targetValue 与当前值不同，就自动启动动画，从当前值插值到新目标。这就是「隐式动画」：你只管目标，过程交给系统。
 
 4. **默认动画规格**：动画规格（`AnimationSpec`）就是描述动画「怎么动」的参数集合——时长、缓动曲线、是否回弹，第 55 章详解；不传 `animationSpec` 时，这一族函数的默认值是 `spring()`（弹簧物理动画规格：时长由阻尼、刚度推算，不是预设的固定时长，第 55 章详解），并不是 `tween`。需要固定时长或自定速度曲线时，才显式传 `tween(durationMillis = ..., easing = ...)`。
 
 5. **label 参数**：给动画起名字，供 Android Studio 的 Animation 调试面板（Layout Inspector）识别。生产代码可省略，但调试动画问题时强烈建议写上。
 
-6. **动画期间每帧重组是预期行为**：动画进行中，每次帧时钟回调都会产生一个新插值，Compose 读到变化的值后只重组「读取该值」的作用域（上面例子中只有 graphicsLayer 和 background 被重组）。这不是性能问题，反而是值动画的高效之处——未读取的部分不重组。
+6. **动画期间的更新范围是预期行为**：动画进行中，每帧都会产生一个新插值，影响范围取决于值在哪里被读取——`bgColor` 是在组合中求值的参数（`Modifier.background(bgColor)`），动画期间读取它的 `LikeButton` 这个作用域每帧重组；`scale` 写在 `Modifier.graphicsLayer { }` 的 lambda 里，这类延迟读取连重组都不触发，只让该节点的 layer 块重新执行、直接更新绘制层（第 56 章展开）。未读取动画值的部分完全不参与。这不是性能问题，反而是值动画的高效之处。
 
 7. **与 AnimatedVisibility 的差异**：animate*AsState 只动「值」，内容本身始终在组合中；AnimatedVisibility 动的是「内容的出现与消失」，会在组合中增删内容。需要"内容移入/移出"时用 AnimatedVisibility，需要"某个属性平滑变化"时用 animate*AsState，二者互补。
 
@@ -158,9 +159,14 @@ class LikeButton extends StatelessWidget {
 
 1. 返回 `State<Float>`。`by` 委托调用 `getValue()` 解包出 Float 值；每次读到新值，读取作用域自动重组。
 2. 系统检测到目标值变化，启动内部动画从当前值插值到 1.3f；每帧产生新值触发局部重组；到达目标后动画停止，不再触发重组。
-3. 不是。只有「读取该动画值」的作用域（如 graphicsLayer、background）会被重组，其余 UI 不动，开销很小；这是值动画的预期工作方式。
+3. 不是。只有「在组合中读取该动画值」的作用域会被重组（例中读取 bgColor 的 LikeButton）；写在 `graphicsLayer { }` lambda 里延迟读取的值（例中的 scale）连重组都不触发，只更新绘制层。其余 UI 不动，开销很小；这是值动画的预期工作方式。
 4. 合理。它们各自记住独立状态、同步由同一状态驱动，且可分别配不同动画规格；需要严格同步多个属性时则用后续章节的 updateTransition。
 
 ## 9. 本章总结
 
 animate*AsState 是 Compose 隐式动画的入口：声明目标值，框架自动补间并返回可读的 State，让最常用的数值、颜色、尺寸动画缩减到一行代码。它解决「单个值随状态变化自动动画」这一基本问题，是后续手动控制（Animatable）、内容过渡（AnimatedVisibility）与多属性编排（updateTransition）的基础。
+
+官方参考：
+
+- [Animation in Compose（animate*AsState 一节）](https://developer.android.com/develop/ui/compose/animation)
+- [animateFloatAsState API](https://developer.android.com/reference/kotlin/androidx/compose/animation/core/animateFloatAsState)

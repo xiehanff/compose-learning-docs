@@ -13,8 +13,7 @@
 
 进阶篇不再局限于 compose_demo 项目，本章使用通用 Compose API。
 
-- `androidx.compose.animation`：`rememberInfiniteTransition`、`InfiniteTransition`
-- `androidx.compose.animation.core`：`infiniteRepeatable`、`tween`、`RepeatMode`、`LinearEasing`、`FastOutSlowInEasing`
+- `androidx.compose.animation.core`：`rememberInfiniteTransition`、`InfiniteTransition`、`infiniteRepeatable`、`tween`、`RepeatMode`、`LinearEasing`、`FastOutSlowInEasing`
 - `androidx.compose.ui`：`Modifier.graphicsLayer`
 - `androidx.compose.material3`：`Icon`、`MaterialTheme`
 
@@ -73,11 +72,15 @@ fun LoadingIndicator() {
 
 3. **`infiniteRepeatable` 是关键规格**。普通 `repeatable` 需要 `iterations` 参数，转完指定次数就停；`infiniteRepeatable` 没有次数概念，永远循环。配合 `RepeatMode.Restart`（到头后跳回起点）或 `RepeatMode.Reverse`（到头后反向播放），就能覆盖"转圈"和"呼吸"两类常见效果。记住：无限动画必须用 `infiniteRepeatable`。
 
-4. **`graphicsLayer` 让动画零布局成本**。旋转、透明度、缩放都属于绘制属性，写在 `graphicsLayer { }` 里只更新 RenderNode 的绘制参数，Compose 可以跳过 measure 和 layout，只走 draw 阶段。如果在动画里直接改 `Modifier.size`、`padding` 之类的布局属性，每一帧都会触发整棵子树的重新测量，掉帧是必然的。记住：动画能走 `graphicsLayer` 就别走布局属性。
+4. **`graphicsLayer` 让动画避开布局成本**。旋转、透明度、缩放都属于绘制属性，写在 `graphicsLayer { }` 里只更新绘制层的参数，Compose 可以跳过 measure 和 layout，只走 draw 阶段。如果在动画里直接改 `Modifier.size`、`padding` 之类的布局属性，每一帧都会触发相关子树的重新测量，层级一大很容易掉帧。记住：动画能走 `graphicsLayer` 就别走布局属性。
 
-5. **不要用 `LaunchedEffect` + `while (true)` 手写循环**。手动循环需要自己 `delay`、自己算进度、自己把值写进 State，每帧还触发一次重组，代码又丑又容易漏掉取消。`InfiniteTransition` 内部有专门的帧回调机制，值的更新不会引发无关重组。记住：无限动画的标准答案是 `rememberInfiniteTransition`，不是 while 循环。
+5. **注意读取位置：lambda 版 `graphicsLayer` 才不触发重组**。`Modifier.graphicsLayer { rotationZ = rotation }` 的读取发生在 layer 块里，动画期间只重新执行该块；而 `Modifier.rotate(rotation)` 虽然内部同样是 graphicsLayer 实现，但 `rotation` 是组合期求值的参数，动画期间读取它的作用域每帧重组、重建 modifier 链。高频动画统一用 lambda 版。
 
-6. **自动清理**。`InfiniteTransition` 的生命周期绑定组合：当包含它的 composable 从组合中移除（比如列表项被删除、页面被导航走），动画帧回调自动停止，无需 `DisposableEffect` 手动收尾。这是声明式框架帮你兜底的典型场景。
+6. **不要用 `LaunchedEffect` + `while (true)` 手写循环**。手动循环需要自己 `delay`、自己算进度、自己把值写进 State，每帧还触发一次重组，代码又丑又容易漏掉取消。`InfiniteTransition` 内部有专门的帧回调机制，值的更新不会引发无关重组。记住：无限动画的标准答案是 `rememberInfiniteTransition`，不是 while 循环。
+
+7. **自动清理**。`InfiniteTransition` 的生命周期绑定组合：当包含它的 composable 从组合中移除（比如列表项被删除、页面被导航走），动画帧回调自动停止，无需 `DisposableEffect` 手动收尾。这是声明式框架帮你兜底的典型场景。
+
+8. **无障碍：尊重「移除动画」偏好**。Compose 动画遵循系统的动画时长缩放（开发者选项中的 Animator duration scale；「移除动画」无障碍开关对应缩放为 0）：有限动画的时长按比例缩短；缩放为 0 时无限动画会被禁用，`InfiniteTransition` 不再逐帧推进，而不是照常空转（官方通过 `InfiniteAnimationPolicy` 协程上下文元素介入无限动画）。给所有用户做好动画开关的兜底（如加载态同时提供静态提示），具体行为以官方文档与当前版本为准。
 
 ## 5. 实际执行过程
 
@@ -89,7 +92,7 @@ fun LoadingIndicator() {
 
 ## 6. Flutter / Dart 3 对照
 
-相似点：Flutter 的 `AnimationController.repeat()` 与 Compose 的 `infiniteRepeatable` 完全等价，都是"无限循环的动画驱动器"；`RepeatMode.Restart/Reverse` 对应 Flutter 的 `repeat()` 的 `reverse` 参数。`graphicsLayer` 的旋转则对应 `RotationTransition`。
+相似点：Flutter 的 `AnimationController.repeat()` 与 Compose 的 `infiniteRepeatable` 概念上对应，都是"无限循环的动画驱动器"——但这是概念对照，不是机制等价（生命周期管理的差异见下面的本质区别）；`RepeatMode.Restart/Reverse` 对应 Flutter `repeat()` 的 `reverse` 参数。`graphicsLayer` 的旋转则对应 `RotationTransition`。
 
 ```dart
 class _LoadingIndicatorState extends State<LoadingIndicator>
@@ -102,7 +105,7 @@ class _LoadingIndicatorState extends State<LoadingIndicator>
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1000),
-    )..repeat(); // 等价于 infiniteRepeatable + Restart
+    )..repeat(); // 对应 infiniteRepeatable + RepeatMode.Restart
   }
 
   @override
@@ -114,7 +117,7 @@ class _LoadingIndicatorState extends State<LoadingIndicator>
   @override
   Widget build(BuildContext context) {
     return RotationTransition(
-      turns: _controller, // 0.0 ~ 1.0，等价于 0f ~ 360f
+      turns: _controller, // 0.0 ~ 1.0，对应 0f ~ 360f
       child: const Icon(Icons.refresh),
     );
   }
@@ -128,7 +131,7 @@ class _LoadingIndicatorState extends State<LoadingIndicator>
 1. **用 `LaunchedEffect` + `while (true)` 手写动画循环**。每帧 `delay(16)` 自己算进度、自己写 State，触发整棵树重组，且取消逻辑要自己写。应改用 `rememberInfiniteTransition`。
 2. **在动画回调里直接改 `State`**。比如 `while` 循环里 `counter++` 写进 `mutableStateOf`，每帧重组整个 composable，子组件全部重新执行。`graphicsLayer` 的绘制属性更新不触发重组，是正确做法。
 3. **把 `infiniteRepeatable` 写成 `repeatable`**。`repeatable(iterations = 3)` 转三圈就停了，加载图标转三圈停住，用户会以为应用卡死。
-4. **动画属性放在布局 modifier 上**。把旋转值写进 `Modifier.rotate(rotation)` 虽然也能转，但会走布局阶段；高频场景应统一走 `graphicsLayer`。
+4. **把动画值以参数形式喂给组合期求值的 modifier**。`Modifier.rotate(rotation)` 内部虽然也是 graphicsLayer 实现（不走布局），但 `rotation` 在组合期求值：动画期间读取它的作用域每帧重组、重建 modifier 链。应改用 lambda 版 `graphicsLayer { rotationZ = rotation }`，把读取推迟到 layer 块里。同理，动画中直接改 `Modifier.size`、`padding` 这类布局参数，则每帧触发重新测量，代价更高。
 5. **给每条动画单独 `rememberInfiniteTransition`**。多个无限动画各自驱动一个帧循环，浪费性能；应共用一个 transition，用 `label` 区分。
 
 ## 8. 本章检查题
@@ -141,10 +144,15 @@ class _LoadingIndicatorState extends State<LoadingIndicator>
 答案：
 
 1. 范围就是 `initialValue` 到 `targetValue`。写 `0f..360f` 得到 0 到 360 的进度；写 `0f..1f` 就得到 0 到 1 的归一化进度，配合 `graphicsLayer` 的 `rotationZ = it * 360f` 使用。
-2. 旋转、透明度、缩放属于绘制属性，`graphicsLayer` 只更新绘制层，跳过 measure/layout，成本低且不引发重组；改布局属性则每帧触发整棵子树重新测量。
+2. 旋转、透明度、缩放属于绘制属性，写在 lambda 版 `graphicsLayer { }` 里的读取连重组都不触发，只更新绘制层、跳过 measure/layout；改布局属性（size、padding）则每帧触发重新测量。
 3. 帧回调自动停止，动画自动取消，无需手动清理。这是 `InfiniteTransition` 绑定组合生命周期的结果。
 4. `repeatable` 需要 `iterations` 次数参数，播完指定次数即停止；`infiniteRepeatable` 无次数限制，永远循环，适合加载、呼吸类效果。
 
 ## 9. 本章总结
 
-无限动画的标准入口是 `rememberInfiniteTransition`：它通过 `infiniteRepeatable` 规格让 `animateFloat` 永不停止，配合 `RepeatMode.Restart/Reverse` 实现转圈与呼吸两种经典效果。动画值尽量通过 `graphicsLayer` 施加到绘制层，既避开布局开销也避免无谓重组；组合销毁时动画自动取消，你不需要写任何清理代码。
+无限动画的标准入口是 `rememberInfiniteTransition`：它通过 `infiniteRepeatable` 规格让 `animateFloat` 永不停止，配合 `RepeatMode.Restart/Reverse` 实现转圈与呼吸两种经典效果。动画值尽量通过 lambda 版 `graphicsLayer` 施加到绘制层，既避开布局开销也避免无谓重组；组合销毁时动画自动取消，你不需要写任何清理代码；系统「移除动画」偏好开启时无限动画会被禁用，注意做好兜底。
+
+官方参考：
+
+- [rememberInfiniteTransition API](https://developer.android.com/reference/kotlin/androidx/compose/animation/core/rememberInfiniteTransition)
+- [InfiniteAnimationPolicy API（无限动画禁用策略）](https://developer.android.com/reference/kotlin/androidx/compose/ui/platform/InfiniteAnimationPolicy)

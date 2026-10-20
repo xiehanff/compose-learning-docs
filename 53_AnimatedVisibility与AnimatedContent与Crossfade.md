@@ -118,13 +118,14 @@ fun ViewSwitcher(mode: ViewMode) {
 
 - `transitionSpec` 里的 `togetherWith` 把进入与退出过渡绑定成一对；
 - content lambda 的参数是**当前正在显示的 targetState**，不是旧的、也不是外部变量；
-- 如果两个状态的内容相同（相等判断），不会触发动画。
+- 如果两个状态的内容相同（相等判断），不会触发动画；
+- 动画进行中 `targetState` 再次变化时是**平滑打断**：正在进入的内容转为退出，所有子动画从当前值转向新目标，不会排队等旧动画播完。
 
 记住：`AnimatedContent` 的 lambda 参数才是"正在显示的那个状态"，内容必须基于它构建。
 
 ### 4.3 `Crossfade`：最简单的切换
 
-`Crossfade(targetState)` 是 `AnimatedContent` 的简化特例：内部就是 `fadeIn` + `fadeOut` 的交叉淡入淡出（透明度此消彼长），不提供位移等自定义过渡。新旧内容在同一区域**重叠绘制**，布局尺寸按新内容计算。适合 logo 切换、主题切换这类"只需要淡入淡出"的场景。
+`Crossfade(targetState)` 是 `AnimatedContent` 的简化特例：内部就是 `fadeIn` + `fadeOut` 的交叉淡入淡出（透明度此消彼长），不提供位移等自定义过渡。新旧内容在同一容器里**重叠绘制**（各播各的透明度动画），容器尺寸不做过渡：切换期间按新旧内容中较大者布局，动画结束后收敛为新内容的尺寸。适合 logo 切换、主题切换这类"只需要淡入淡出、尺寸相近"的场景。
 
 注意术语：本章说的"淡入淡出"指的是透明度变化，和第 60 章讲的"渐变"（颜色沿某个方向平滑过渡的填充效果）不是一回事。
 
@@ -207,7 +208,7 @@ AnimatedSwitcher(
 if (expanded) { DetailContent() }
 ```
 
-`AnimatedVisibility` 默认 `enter = fadeIn()`、`exit = fadeOut()`，所以只要用了它、正确切换 `visible`，就天然有淡入淡出。真正"没动画"的原因通常是内容写在 `AnimatedVisibility` 外面，或者 `visible` 根本没变。
+`AnimatedVisibility` 的默认过渡不是"没有动画"：在本仓库基线中，顶层 `AnimatedVisibility` 的默认值是 `enter = fadeIn() + expandIn()`、`exit = shrinkOut() + fadeOut()`（Row/Column 作用域的重载默认值另有不同，以 API 文档为准），所以只要用了它、正确切换 `visible`，就天然有过渡。真正"没动画"的原因通常是内容写在 `AnimatedVisibility` 外面，或者 `visible` 根本没变。
 
 ### 错误 2：`AnimatedContent` 内容依赖外部旧状态
 
@@ -222,7 +223,7 @@ AnimatedContent(targetState = tab) {
 
 ### 错误 3：`Crossfade` 用于尺寸差异大的内容
 
-Crossfade 不做尺寸过渡，新内容尺寸直接生效，大内容切小内容时布局会瞬间跳变。尺寸差异大的切换应改用 `AnimatedContent` 并配合尺寸过渡，或固定容器尺寸。
+Crossfade 不做尺寸过渡：切换期间容器取新旧内容中较大的尺寸，动画结束后立即收敛到新内容的尺寸，尺寸差异大时会有明显跳变。尺寸差异大的切换应改用 `AnimatedContent` 并配合尺寸过渡（`SizeTransform`），或固定容器尺寸。
 
 ### 错误 4：退出动画期间重复执行副作用
 
@@ -243,3 +244,8 @@ Crossfade 不做尺寸过渡，新内容尺寸直接生效，大内容切小内�
 ## 9. 本章总结
 
 `AnimatedVisibility`、`AnimatedContent`、`Crossfade` 覆盖了"出现/消失、内容切换、简单淡入淡出"三类过渡需求，核心机制都是"新旧内容在过渡期间共存"。选择的关键是判断动画对象是元素存在性还是内容本身，以及是否需要位移动画。理解了它们的边界，大多数页面过渡都可以用声明式写法完成。
+
+官方参考：
+
+- [AnimatedVisibility / AnimatedContent / Crossfade（Animation in Compose）](https://developer.android.com/develop/ui/compose/animation)
+- [AnimatedContent API](https://developer.android.com/reference/kotlin/androidx/compose/animation/AnimatedContent)
