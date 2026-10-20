@@ -91,9 +91,11 @@ AndroidView 的三个核心参数构成一个完整生命周期：`factory` 负�
 
 生命周期不同步是互操作最大的坑：View 的 onDetachedFromWindow 与组合的 dispose 没有一一对应关系。所以资源释放不能依赖 View 自己的销毁回调，必须显式放在 onRelease 里。
 
+还要说清 View 实例与组合的关系：`factory` 创建的 View 只在本次组合存活期间复用；一旦 AndroidView 离开组合（条件分支移除、页面切换），onRelease 被调用、View 被丢弃，再次进入组合会重新执行 factory 创建**新的 View 实例**——View 自己的内部状态（WebView 的页面、播放器的进度、地图的镜头位置）不会自动跨组合保留。需要跨组合保留时，把关键状态提升到 ViewModel 或让 View 从持久化数据恢复，而不是指望旧 View 实例还活着。
+
 触摸与焦点：AndroidView 内的触摸事件默认优先交给 View 自身处理，与 Compose 手势的竞争遵循第 66 章的手势仲裁规则；焦点、输入法切换等行为也需要按 View 体系的规则来。
 
-ComposeView 是反方向的路：把 Compose 装进 View 世界。`setContent` 建立组合，而 `ViewCompositionStrategy` 决定组合**何时销毁**：DisposeOnDetachedFromWindow 表示 ComposeView 脱离窗口即销毁组合（适合普通页面）；DisposeOnViewTreeLifecycleDestroyed 表示跟随 LifecycleOwner 销毁（适合与 Fragment/Activity 生命周期对齐的场景）。不配置策略，组合可能在窗口销毁后仍存活，造成状态与内存泄漏。
+ComposeView 是反方向的路：把 Compose 装进 View 世界。`setContent` 建立组合，而 `ViewCompositionStrategy` 决定组合**何时销毁**：DisposeOnDetachedFromWindow 表示 ComposeView 脱离窗口即销毁组合（适合普通页面）；DisposeOnViewTreeLifecycleDestroyed 表示跟随 LifecycleOwner 销毁（适合与 Fragment/Activity 生命周期对齐的场景）。不显式配置时使用默认策略——在本仓库基线的 Compose UI 中默认为 DisposeOnDetachedFromWindowOrReleasedFromPool（脱离窗口或组合释放时销毁），并非「不配置就一定泄漏」；显式配置的价值是让销毁时机与宿主对齐，例如 Fragment 布局复用场景常用 DisposeOnViewTreeLifecycleDestroyed，避免 View 复用时组合被提前销毁而丢状态。
 
 何时需要互操作：只有 Compose 没有替代品的场景——成熟 SDK（地图）、WebView、视频播放器、需要复用的存量自定义 View。能用 Compose 重写的就不要桥接，桥接层是维护成本。
 
@@ -143,7 +145,7 @@ iOS 对应 UiKitView。两个框架连名字都一样，这是历史上少有的
 
 - 只在 factory 里设置数据，忘记写 update → 状态变化后 View 显示陈旧
 - 忘记 onRelease → 监听器/Handler 持有 Activity 引用，组合销毁后仍泄漏
-- ComposeView 重复调用 setContent → 重复建立组合，浪费资源甚至崩溃
+- 在宿主里反复调用 ComposeView 的 setContent 重建组合：每次调用都会销毁旧组合再新建，动态内容应写进 setContent 的 lambda 里随状态变化，而不是在外层反复重建
 - 在 View 层与 Compose 层之间直接共享可变状态（把 MutableState 直接塞给 View 用）→ 两边状态不一致、无法观察
 - 忘记给 AndroidView 设置尺寸约束，或父容器拦截触摸导致 View 收不到点击
 
@@ -157,7 +159,7 @@ iOS 对应 UiKitView。两个框架连名字都一样，这是历史上少有的
 答案：
 
 1. factory 创建 View（仅一次）、update 在重组时同步数据、onRelease 在离开组合时清理资源。
-2. 决定 ComposeView 的组合何时销毁的策略；因为 View 树与组合生命周期不同步，不配置会在窗口销毁后仍持有组合状态，造成泄漏。
+2. 决定 ComposeView 的组合何时销毁的策略；因为 View 树与组合生命周期不同步，默认策略（本仓库基线中为脱离窗口或组合释放时销毁）不一定与宿主生命周期对齐，Fragment 等复用场景需显式选择合适的策略，否则可能丢状态或泄漏。
 3. 使用只有传统 View API 的成熟 SDK（地图）、WebView、视频播放器，以及需要复用存量 View 代码的场景。
 4. factory 只在 View 首次创建时执行一次；update 在每次重组时执行，用于把最新状态同步给 View。
 

@@ -100,13 +100,13 @@ fun Modifier.pressHighlight(): Modifier = composed {
 
 `Modifier.layout { measurable, constraints -> ... }` 是第 62 章 Layout 组合的修饰符形态：同样是 measure → place → layout 三步，但作用对象是「链中它后面的内容」。它的典型用途：扩大可点击区域、加内边距、偏移位置、强制最小尺寸。
 
-`Modifier.drawBehind` 在绘制阶段、内容**之后**（底层）绘制；`Modifier.drawWithContent` 允许在 drawContent() 前后分别绘制，可以做渐变遮罩、边框叠加等。绘制 modifier 里拿到的 `size` 是布局后的尺寸，绘制逻辑与布局无关。
+`Modifier.drawBehind` 在绘制阶段先于内容绘制，画在内容**下层**（作为背景）；`Modifier.drawWithContent` 允许在 drawContent() 前后分别绘制，可以做渐变遮罩、边框叠加等。绘制 modifier 里拿到的 `size` 是布局后的尺寸，绘制逻辑与布局无关。
 
 `Modifier.pointerInput(keys) { ... }` 为链上节点启动一个手势协程，用来接住这个节点上的原始指针事件；块里通常搭配一个"手势识别器"把原始事件翻译成有意义的回调，本章用的是 `detectTapGestures`——它把"按下、抬起"的序列识别成 `onTap`、`onPress`、长按等回调（两者都是第 65 章的内容，本章只需会照着写）。关键点是 `keys`：协程块内捕获的外部值变化时，只有 keys 变化协程才会重启并拿到新值；keys 不变，块内闭包永远是组合那一刻的旧值。所以像 `onClick` 这种「每次重组都可能换一个新 lambda」的回调，要先用 `rememberUpdatedState(onClick)` 包一层，再在协程里读 `currentOnClick()`（第 49 章）。
 
 上面的 `expandClickArea` 还有两个容易踩的坑：`layout` 里修改约束时必须保证修改后的最小值不超过最大值（父级可能已经把最大尺寸卡得很小），报给父级的尺寸也要用 `constraints.constrainWidth/Height` 夹回父约束，否则会违反约束；因为 `Icon` 自带的 `size(24.dp)` 排在调用方 modifier 的后面（更靠内），所以扩展热区的 modifier 要写在固定尺寸之前，写成 `Modifier.size(24.dp).expandClickArea(...)` 就没有扩展空间了。
 
-`Modifier.composed { ... }` 让 modifier 工厂函数获得组合上下文——里面可以调用 `remember`、`LocalDensity.current` 等。它适合教学、兼容旧实现或确实需要直接读取组合上下文的短小 Modifier，但本身有组合开销，不能把它当作所有有状态 Modifier 的必选方案。官方当前更推荐用 `Modifier.Node` / `ModifierNodeElement` 构建可复用、高性能的自定义节点；Node 实现通过 `create/update` 管理参数，并按需实现绘制、布局或指针接口。普通无状态组合优先直接组合已有 Modifier。
+`Modifier.composed { ... }` 让 modifier 工厂函数获得组合上下文——里面可以调用 `remember`、`LocalDensity.current` 等。它适合教学、兼容旧实现或确实需要直接读取组合上下文的短小 Modifier，但本身有组合开销，不能把它当作所有有状态 Modifier 的必选方案。官方文档（见章末链接）推荐的方向是用 `Modifier.Node` / `ModifierNodeElement` 构建可复用、高性能的自定义节点；Node 实现通过 `create/update` 管理参数，并按需实现绘制、布局或指针接口。普通无状态组合优先直接组合已有 Modifier。
 
 modifier 链的顺序意义：链按声明顺序从外到内包裹，**先声明的在外层、后声明的在内层**。对 layout 类 modifier，外层先测量、其约束包裹内层结果；对内层内容，绘制时先声明的画在更下层、后声明的覆盖其上。比如 `padding().background()` 与 `background().padding()` 的绘制结果不同——顺序错了，背景就画不到 padding 区域。
 
@@ -135,7 +135,7 @@ GestureDetector(
 )
 ```
 
-本质区别：Flutter 没有与 Compose modifier 完全对应的概念——同样的「点击 + 背景 + 内边距」要用三个嵌套 widget 拼，自定义行为得写 RenderObject。Compose 的 modifier 是**可组合的装饰器**：一个对象链按顺序作用于同一个节点，能在测量、绘制、输入三个层面分别注入逻辑，且以函数式 API 组合复用。两者表达力等价，但 modifier 的复用和排序更紧凑。
+本质区别：Flutter 没有与 Compose modifier 完全对应的概念——同样的「点击 + 背景 + 内边距」要用三个嵌套 widget 拼，自定义行为得写 RenderObject。Compose 的 modifier 是**可组合的装饰器**：一个对象链按顺序作用于同一个节点，能在测量、绘制、输入三个层面分别注入逻辑，且以函数式 API 组合复用。在本示例场景下两者表达力相近，但不是完全等价：modifier 的复用和排序更紧凑，嵌套 widget 则更容易被读者一眼看穿层级。
 
 记住：**Compose modifier = 可组合、可排序、三层可注入的装饰器。**
 

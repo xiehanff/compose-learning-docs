@@ -187,7 +187,7 @@ NavDisplay(
 
 7. **`entryDecorators` 给条目加能力**。`NavEntry` 只是想渲染的内容，它默认不具备「保存状态」和「独立 ViewModel 作用域」。装饰器可以给每个条目套上额外逻辑：`rememberSaveableStateHolderNavEntryDecorator()` 让条目内的 `rememberSaveable` 正常工作（配置变化、进程死亡后能恢复），`rememberViewModelStoreNavEntryDecorator()` 为每个条目创建一个 `ViewModelStore`，这样在条目里调用 `viewModel<XxxViewModel>()` 才会得到正确的、跟随条目出栈而清理的实例。注意 `NavDisplay` 的 `entryDecorators` 默认值是 `listOf(rememberSaveableStateHolderNavEntryDecorator())`；一旦你传入自己的列表，就应当把保存状态的那个放在第一位，除非你的装饰器自己提供了 `SaveableStateProvider`。
 
-8. **`sceneStrategies` 决定「一次显示几个条目」**。`NavDisplay` 默认用单栏策略（`SinglePaneSceneStrategy`），也就是只显示栈顶；这是手机竖屏常见形态。传入别的策略列表就能变成「列表 + 详情」的双栏等自适应布局（由 `adaptive-navigation3` 提供相关策略与 metadata 定义）。1.1 起该参数接受的是 `List`（早期版本是单个 `SceneStrategy` 并用 `then` 串联），`Scene` 相关 API 也已从 `navigation3-ui` 移到 `navigation3-runtime`，从而在多平台可用。
+8. **`sceneStrategies` 决定「一次显示几个条目」**。`NavDisplay` 默认用单栏策略（`SinglePaneSceneStrategy`），也就是只显示栈顶；这是手机竖屏常见形态。传入别的策略列表就能变成「列表 + 详情」的双栏等自适应布局。1.1 起该参数接受的是 `List`（早期版本是单个 `SceneStrategy` 并用 `then` 串联）。在本仓库基线（navigation3 1.1.4，核对自 Gradle 缓存构件）中，`Scene` / `SceneStrategy` / `SinglePaneSceneStrategy` 位于 `navigation3-ui` 的 `androidx.navigation3.scene` 包，多栏自适应策略由 `adaptive-navigation3` 构件提供；构件与 API 归属在后续版本可能调整，以官方发布说明为准。
 
 9. **转场定制**。`NavDisplay` 提供 `transitionSpec`（进入）与 `popTransitionSpec`（弹出返回）来覆盖默认转场；还可以通过 `NavEntry` 的 metadata DSL 针对单个条目定制，例如官方示例里的 `NavDisplay.PredictivePopTransitionKey` 用于预测式返回的转场。不确定具体参数名时，先不要写，保留默认行为即可。
 

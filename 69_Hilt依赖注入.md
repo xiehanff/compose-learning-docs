@@ -22,7 +22,7 @@
 
 场景：网络接口依赖注入到 ViewModel，Compose 里直接取用：
 
-下面的代码聚焦 Hilt 的装配关系，不是完整可运行工程：Retrofit/Gson 的 Gradle 依赖、Hilt 插件与 KSP/KAPT 处理器配置需要按预备篇 B 和本仓库版本基线另行加入；首次阅读可先看注入链路，不必先复制网络配置。
+下面的代码聚焦 Hilt 的装配关系，不是完整可运行工程：Retrofit/Gson 的 Gradle 依赖、Hilt 插件与 KSP/KAPT 处理器配置需要按预备篇 B 和本仓库版本基线另行加入；首次阅读可先看注入链路，不必先复制网络配置。本章示例**需工程环境，不参与编译校验**——snippets 校验工程没有 Hilt 与 Retrofit 依赖，因此以下代码块不加编译标记。
 
 ```kotlin
 // App.kt —— Application 必须加 @HiltAndroidApp

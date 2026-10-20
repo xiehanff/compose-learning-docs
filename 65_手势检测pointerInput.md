@@ -88,7 +88,7 @@ Modifier.pointerInput(Unit) {
 
 ## 4. 逐步解释
 
-底层机制：`Modifier.pointerInput(keys) { ... }` 启动一个手势协程，块内 `awaitPointerEventScope` 里循环调用 `awaitPointerEvent()` 接收 `PointerEvent`——它带 `changes` 列表，每个 `PointerInputChange` 对应一根手指，含 `position`、`pressed` 等状态。**所有 detect 系列函数都是在这套事件流之上封装的高层识别器**：它们内部循环收事件、按模式匹配，再回调给你。
+底层机制：`Modifier.pointerInput(keys) { ... }` 启动一个手势协程，块内 `awaitPointerEventScope` 里循环调用 `awaitPointerEvent()` 接收 `PointerEvent`——它带 `changes` 列表，每个 `PointerInputChange` 对应一根手指，含 `position`、`pressed` 等状态。这些 `await*` 都是挂起函数：没有新事件时协程挂起等待，事件到达才恢复执行——手势检测用协程写，正是因为指针事件流天然是一个异步序列。**所有 detect 系列函数都是在这套事件流之上封装的高层识别器**：它们内部循环收事件、按模式匹配，再回调给你。
 
 `detectTapGestures`：识别 onTap、onDoubleTap、onLongPress、onPress（按下即回调，可配合 tryAwaitRelease 做按压反馈）。适合按钮、列表项。
 
@@ -98,7 +98,7 @@ Modifier.pointerInput(Unit) {
 
 轴向锁定：`detectVerticalDragGestures` / `detectHorizontalDragGestures` 只认单一方向的拖动，常用来区分「列表里竖滑 vs 横滑」。
 
-事件消费与手势竞争：指针事件从最内层节点向外传播，每一层都可以 `change.consume()` 标记「我已处理」。被消费的事件不会再触发外层的手势识别。这就是为什么子级图片拖拽时父级滚动不响应——**谁消费谁赢**。忘了 consume 的典型后果是手势穿透、父子同时响应。
+事件消费与手势竞争：在默认的 Main 分发通道中，指针事件从最内层节点向外传播（Compose 还有 Initial / Final 两个通道，本文只讲 Main，属教学简化），每一层都可以 `change.consume()` 标记「我已处理」。被消费的事件仍会传到外层，但 detect 系列这类识别器看到 `isConsumed` 后会忽略或放弃当前手势，效果上就是「外层不再响应」。这就是为什么子级图片拖拽时父级滚动不响应——**谁消费谁赢**。忘了 consume 的典型后果是手势穿透、父子同时响应。
 
 记住：**detect 系列 = 事件流上的模式识别器；consume 决定手势竞争胜负；位移用 positionChange。**
 
@@ -147,7 +147,7 @@ GestureDetector(
 答案：
 
 1. 基于 `awaitPointerEventScope` 循环接收 PointerEvent 的事件流，detect* 是在其上封装的高层手势识别器。
-2. 把本次指针事件标记为「已处理」，阻止它继续向外层传播，从而决定手势竞争的胜负、防止手势穿透。
+2. 把本次指针事件标记为「已处理」；外层识别器看到 isConsumed 后通常忽略或放弃当前手势（事件本身仍会传到外层），从而决定手势竞争的胜负、防止手势穿透。
 3. 因为绝对坐标与手指按下位置耦合，无法正确描述「移动了多少」；positionChange 是两次事件间的相对位移，累加结果才稳定。
 4. 协程会取消并重启，闭包重新捕获最新的外部值；keys 不变则一直使用旧闭包，可能读到过期状态。
 
