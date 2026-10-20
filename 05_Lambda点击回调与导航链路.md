@@ -51,6 +51,8 @@ Unit      不返回业务结果
 
 所以 `onNavigate` 不是字符串、对象或布尔值，而是一个可以调用的函数。
 
+函数类型与 Lambda 的完整语法（包括 `{ id -> ... }` 这种写法）见[预备篇 D](00D_Kotlin基础与Compose必备语法.md)。
+
 调用方式：
 
 ```kotlin
@@ -486,10 +488,10 @@ Card(onClick = onClick)
 
 因为 Material 3 提供了一个可点击 Card 的函数版本。
 
-但 `Text` 没有普通的 `onClick` 参数：
+但 `Text` 没有 `onClick` 参数——在本仓库基线（Compose BOM 2026.06.00，解析到 Material 3 1.4.x）中是这样的；更早的 Material 3 版本曾提供过带 `onClick` 参数的 `Text` 重载，新版本已将其移除，所以旧教程里可能见过这种写法：
 
 ```kotlin
-// 不能这样写
+// 本基线下不能这样写：Text 没有 onClick 参数
 Text(
     text = "点击我",
     onClick = { },
@@ -498,6 +500,7 @@ Text(
 
 通常通过 Modifier 添加点击能力：
 
+<!-- compile -->
 ```kotlin
 Text(
     text = "点击我",
@@ -662,6 +665,7 @@ doSomething()
 
 不用 UI，只看函数：
 
+<!-- compile -->
 ```kotlin
 fun receiveClick(onClick: () -> Unit) {
     println("暂时不执行")

@@ -283,6 +283,8 @@ content: @Composable () -> Unit
 - `Unit`：这个函数不返回业务结果
 - `@Composable`：这个函数是 Compose 的 UI 内容，可以在其中构建界面
 
+`() -> Unit` 是 Kotlin 的函数类型写法，`setContent { ... }` 的大括号则是把一个 Lambda 传给它；函数类型与 Lambda 的完整语法见[预备篇 D 的「Lambda 与函数类型」「尾随 Lambda」两节](00D_Kotlin基础与Compose必备语法.md)。
+
 所以：
 
 ```kotlin

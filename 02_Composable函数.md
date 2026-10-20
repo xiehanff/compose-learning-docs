@@ -44,6 +44,7 @@ private fun EntryCard(
 
 先看普通函数：
 
+<!-- compile -->
 ```kotlin
 fun add(a: Int, b: Int): Int {
     return a + b
@@ -76,6 +77,7 @@ val result = add(2, 3)
 
 ## 3. Composable 函数
 
+<!-- compile decls -->
 ```kotlin
 @Composable
 fun Greeting() {
@@ -152,6 +154,7 @@ fun showTitle() {
 
 正确：
 
+<!-- compile decls -->
 ```kotlin
 @Composable
 fun ShowTitle() {
@@ -174,6 +177,7 @@ Composable 函数 → 可以调用 Composable 函数
 
 例如：
 
+<!-- compile decls -->
 ```kotlin
 fun buildTitle(): String {
     return "Compose Demo"
@@ -270,6 +274,7 @@ Text                     基础文字组件
 
 项目首页可以简化为：
 
+<!-- compile decls -->
 ```kotlin
 @Composable
 fun HomeScreen() {
@@ -330,6 +335,7 @@ content : @Composable () -> Unit
 
 例如：
 
+<!-- compile decls -->
 ```kotlin
 @Composable
 fun Frame(content: @Composable () -> Unit) {
@@ -411,6 +417,7 @@ DemoTheme(
 
 再比如：
 
+<!-- compile -->
 ```kotlin
 Column {
     Text("A")
@@ -428,6 +435,8 @@ Column {
 
 它本质仍然是 Kotlin Lambda。
 
+函数类型与尾随 Lambda 的语法基础见[预备篇 D](00D_Kotlin基础与Compose必备语法.md)。
+
 ---
 
 ## 11. Composable 可能执行多次
@@ -440,6 +449,7 @@ Column {
 
 例如：
 
+<!-- compile decls -->
 ```kotlin
 @Composable
 fun Counter(count: Int) {
@@ -494,6 +504,7 @@ class HomeScreen extends StatelessWidget {
 
 Compose：
 
+<!-- compile decls -->
 ```kotlin
 @Composable
 fun HomeScreen() {

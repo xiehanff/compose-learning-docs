@@ -204,7 +204,7 @@ class Counter {
 }
 ```
 
-data class 适合不可变数据：
+data class 适合不可变数据。「data」会让编译器自动生成 `equals`、`hashCode`、`toString`、`copy` 等成员，省去手写比较和复制逻辑。后续章节的数据载体（如第 36 章的 `ComponentInfo`）用的就是它：
 
 ```kotlin
 data class User(
@@ -213,14 +213,14 @@ data class User(
 )
 
 val user = User(id = 1, name = "小明")
-val updated = user.copy(name = "新名字")
+val updated = user.copy(name = "新名字") // copy 生成一个只改部分字段的新实例
 ```
 
 `object` 声明单例（单例指整个程序里只会创建一个实例的对象；第 38 章会用 `object` 组织全局注册表）：
 
 ```kotlin
 object Routes {
-    const val HOME = "home"
+    const val HOME = "home" // const val：编译期常量，值在编译时确定并直接编入使用处
 }
 ```
 

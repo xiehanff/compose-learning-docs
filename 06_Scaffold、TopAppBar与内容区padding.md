@@ -7,9 +7,11 @@
 学完后，你应当能够：
 
 - 知道 Scaffold 不是必须组件，而是 Material 页面骨架
-- 看懂 topBar 参数为什么接收 Composable Lambda
-- 理解内容 Lambda 的 PaddingValues 来源
-- 避免列表被 TopAppBar 或系统栏遮挡
+- 看懂 topBar / bottomBar 参数为什么接收 Composable Lambda
+- 理解内容 Lambda 的 PaddingValues 从哪里来（contentWindowInsets → innerPadding 的传递链）
+- 说清 WindowInsets 在这条链里扮演什么角色
+- 避免列表被 TopAppBar、BottomBar 或系统栏遮挡
+- 说清与 Flutter Scaffold 相似与不等价的地方
 
 ## 2. 项目中的位置
 
@@ -21,6 +23,7 @@
 
 ## 3. 项目源码片段
 
+<!-- compile -->
 ```kotlin
 Scaffold(
     topBar = {
@@ -45,7 +48,81 @@ Scaffold(
 
 另外，`TopAppBar` 在本项目使用的 Material3 版本中仍标注为实验 API，使用时需要给所在函数加 `@OptIn(ExperimentalMaterial3Api::class)`（本项目的 `ComponentDetailScreen.kt`、`ScaffoldDemo.kt` 都写了）。
 
-### 4.1 innerPadding 与嵌套 Scaffold 的系统栏边距（WindowInsets）
+### 4.1 基础层级示例：TopAppBar + 内容区 + BottomBar 的完整最小骨架
+
+把常用槽位一次性摆齐，先看全貌（可直接复制到练习工程运行；哪些部分消费 insets 已在注释里标出）：
+
+<!-- compile decls -->
+```kotlin
+@OptIn(ExperimentalMaterial3Api::class) // TopAppBar 在本仓库基线（material3 1.4.x）仍是实验 API
+@Composable
+fun BasicScaffoldPage() {
+    Scaffold(
+        // contentWindowInsets 不传时取默认值 ScaffoldDefaults.contentWindowInsets（系统栏类 insets）
+        topBar = {
+            // 消费 insets 的一环：TopAppBar 默认把状态栏高度算进自身，顶栏因此加高避开状态栏
+            TopAppBar(title = { Text("页面标题") })
+        },
+        bottomBar = {
+            // 消费 insets 的另一环：NavigationBar 默认把底部导航条高度算进自身，底栏因此垫高避开系统导航条
+            NavigationBar {
+                NavigationBarItem(
+                    selected = true,
+                    onClick = {},
+                    icon = { Icon(Icons.Filled.Home, contentDescription = null) },
+                    label = { Text("首页") },
+                )
+                NavigationBarItem(
+                    selected = false,
+                    onClick = {},
+                    icon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                    label = { Text("搜索") },
+                )
+            }
+        },
+    ) { innerPadding ->
+        // Scaffold 不消费、只上交：把栏的高度与剩余 insets 算成一份 PaddingValues 交给内容
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding), // 由内容自己应用：不写这句，文字会顶到标题栏和底栏后面
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text("内容区：已经避开 topBar 与 bottomBar")
+        }
+    }
+}
+```
+
+`NavigationBar` / `NavigationBarItem` 的参数细节见第 31 章，这里只需要把它当成「底部栏槽位里放了一个组件」的示例。
+
+`innerPadding` 的传递链完整走一遍：
+
+```text
+WindowInsets（系统栏占用了多少屏幕，第 78 章详解）
+        ↓
+Scaffold 的 contentWindowInsets（默认 ScaffoldDefaults.contentWindowInsets，系统栏类 insets；
+有 topBar / bottomBar 的方向，insets 交给栏自己处理，不计入 innerPadding）
+        ↓
+Scaffold 计算：栏的高度 + 未被栏处理的 insets → PaddingValues
+        ↓
+作为 innerPadding 交给内容 Lambda（Scaffold 到此为止，不负责应用）
+        ↓
+内容根执行 .padding(innerPadding)（必要时再 .consumeWindowInsets(innerPadding)，见第 78 章）
+        ↓
+内容真正可绘制、可滚动的区域
+```
+
+记住三个「谁消费谁」：
+
+- 状态栏方向：默认由 `TopAppBar` 消费（顶栏自己加高）；
+- 底部导航条方向：默认由 `NavigationBar` 之类底栏组件消费；
+- 栏与内容之间的空间：Scaffold 算成 `innerPadding` 上交，由内容应用。
+
+这条链上每一环都「只算不代劳」：栏组件把 insets 算进自己的高度，Scaffold 把剩余空间算成 `PaddingValues`，最后一步 `.padding(innerPadding)` 永远是你的代码。
+
+### 4.2 innerPadding 与嵌套 Scaffold 的系统栏边距（WindowInsets）
 
 > **首次阅读可先跳过：**本节是把 Scaffold 放进固定高度示例时才需要的进阶边界。先掌握上一节的核心规则即可：Scaffold 把内容区所需的 `padding` 交给你，内容根要应用它；`WindowInsets`、嵌套栏与重复消费会在第 78 章系统讲解。读完第 78 章后再回来核对本节。
 
@@ -89,14 +166,23 @@ Scaffold(
 ## 5. 实际执行过程
 
 1. Compose 调用 Scaffold
-2. Scaffold 先组合 topBar
-3. Scaffold 计算内容应避开的边距
+2. Scaffold 先组合 topBar、bottomBar（栏组件默认各自消费对应方向的系统栏 insets）
+3. Scaffold 把栏的高度与未被栏处理的 insets 算成一份 PaddingValues
 4. 内容 Lambda 收到 PaddingValues
-5. LazyColumn 应用 padding 后开始布局
+5. 内容应用 padding 后开始布局
 
 ## 6. Flutter / Dart 3 对照
 
-Flutter 的 `Scaffold` 同样提供 appBar、body、bottomNavigationBar 等页面槽位。不过 Flutter 的 body 通常由 Scaffold 自动布局到 AppBar 下方；Compose 的 Scaffold 把 `PaddingValues` 明确交给内容，开发者必须决定如何应用。
+两者相似的只是「页面骨架 + 槽位」这个组织方式：appBar / topBar、body / 内容区、bottomNavigationBar / bottomBar、floatingActionButton / floatingActionButton 的角色大致可以对应。但只能做概念对照，不能当成等价机制：
+
+| 对照点 | Flutter Scaffold | Compose Scaffold |
+|---|---|---|
+| 内容区避让 | body 由 Scaffold 自动布局到 appBar 与 bottomNavigationBar 之间，一般无需手动避让 | 内容收到 `innerPadding: PaddingValues`，必须自己 `.padding(innerPadding)` 应用 |
+| 系统栏避让 | 通常由 `MediaQuery.padding` / `SafeArea` 处理 | WindowInsets 体系；槽位栏默认消费对应方向的 insets（第 78 章） |
+| 底部栏 | `bottomNavigationBar` 是 Scaffold 的具名参数，槽位语义固定 | `bottomBar` 是通用 Composable 槽位，放 `NavigationBar` 还是别的组件都行 |
+| 底部导航组件 | Flutter 的 `BottomNavigationBar` / `NavigationBar` widget | Material 3 的 `NavigationBar` Composable（第 31 章） |
+
+Compose 把 `PaddingValues` 明确交给内容、由开发者决定如何应用；Flutter 的 body 则是「被动」被排好。从 Flutter 迁移心智时，最容易踩的坑就是以为 Compose 也会自动避开 AppBar。
 
 ```dart
 Scaffold(
@@ -126,6 +212,8 @@ Scaffold(
 2. topBar 的 `{ Text(...) }` 为什么不是立即返回一个 Text 对象？
 3. PaddingValues 和单个 Dp 有什么区别？
 4. 把 Scaffold 嵌进固定高度容器时，为什么要给 `TopAppBar` 传 `windowInsets = WindowInsets(0, 0, 0, 0)`？清零后还需要用 `innerPadding` 吗？
+5. 有 `bottomBar` 时，底部导航条方向的 insets 由谁消费？它会计入 `innerPadding` 吗？
+6. Flutter Scaffold 的 body 与 Compose Scaffold 的内容区，在避开 AppBar 这件事上机制有何不同？
 
 答案：
 
@@ -133,7 +221,9 @@ Scaffold(
 2. 它是 UI 构建参数（Composable 槽位），由 Scaffold 在合适的时机构建并放入槽位，而不是立即返回对象。
 3. PaddingValues 包含 start、top、end、bottom 四个方向的信息，单个 Dp 只有一个值。
 4. 因为 `TopAppBar` 默认会把状态栏高度算进自己的边距，而外层页面已经处理过一次系统栏，嵌套后会重复叠加、把顶栏额外撑高。清零的是槽位组件自己的系统栏边距，与内容区无关，所以内容区仍然必须执行 `.padding(innerPadding)`。
+5. 默认由 bottomBar 槽位里的栏组件（如 `NavigationBar`）自己消费；有 bottomBar 的方向，insets 不计入 `innerPadding`，`innerPadding` 在该方向剩下的是栏本身的高度等间距。
+6. Flutter 由 Scaffold 自动把 body 布局在 appBar 与 bottomNavigationBar 之间；Compose 只把 `PaddingValues` 交给内容，需要开发者自己执行 `.padding(innerPadding)`，两者不是等价机制。
 
 ## 9. 本章总结
 
-`Scaffold` 负责页面槽位间的空间协调，并把 insets 算成 `PaddingValues` 交给内容；它**不会自己应用这些 insets**，所以内容 Lambda 接收的 `PaddingValues` 必须由具体内容消费（必要时再配 `consumeWindowInsets`，见第 78 章）。
+`Scaffold` 负责页面槽位间的空间协调：topBar / bottomBar 槽位组件默认各自消费对应方向的系统栏 insets，Scaffold 再把剩余空间算成 `PaddingValues` 交给内容。它**不会自己应用这些 insets**，所以内容 Lambda 接收的 `PaddingValues` 必须由具体内容消费（必要时再配 `consumeWindowInsets`，见第 78 章）。与 Flutter Scaffold 只在「骨架 + 槽位」的组织方式上相似，padding 处理机制并不等价。

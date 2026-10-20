@@ -47,9 +47,11 @@ fun DemoApp() {
 
 本章先理解导航结构，第 5 章再专门拆点击回调。
 
+> 说明：本章多处代码节选自原 `compose_demo` 工程，`HomeScreen`、`ComponentDetailScreen`、`ComponentRegistry` 都是工程内的组件，这些节选不能脱离原工程直接复制编译；不依赖工程符号的可编译片段会单独标注。另外，本仓库的片段编译工程未引入 `navigation-compose` 依赖，所以本章的 `NavHost` / `NavController` 相关代码块不参与自动编译校验，API 用法以官方文档为准。
+
 还需要先说清楚这套写法在官方方案里的位置：
 
-> 项目使用的是 `androidx.navigation:navigation-compose` 的**字符串路由**写法（通常称为 Nav2 风格），目的地和参数都写成字符串。这套写法目前在大量存量项目中广泛使用，学习和维护价值很高。官方现在也有更新的方案：类型安全导航见第 71 章，Navigation 3 见新增章节。本章只讲字符串路由这套基础，不展开新旧方案的对比。
+> 项目使用的是 `androidx.navigation:navigation-compose` 的**字符串路由**写法（通常称为 Nav2 风格），目的地和参数都写成字符串。这套写法目前在大量存量项目中广泛使用，学习和维护价值很高。官方同时提供两条更新的路线：同一个库里的类型安全导航（用 Kotlin 对象代替字符串路由）见[第 71 章](71_导航进阶嵌套导航与类型安全导航.md)；独立的 Navigation 3 库（模型与 API 都不同）见[第 71A 章](71A_Navigation3与NavDisplay.md)。第 4 章与 71/71A 并存是本教程的安排：先掌握 Nav2 字符串路由这套存量项目里最常见的写法，71A 则是 Navigation 3 的独立入门示例，三者并存不构成「应从 Nav2 迁移到 Nav3」的建议，选型以官方迁移指南与项目实际情况为准。本章只讲字符串路由这套基础，不展开新旧方案的对比。
 
 ---
 
@@ -427,6 +429,8 @@ arguments?.getString(...)
 
 因此最终 `componentId` 一定是非空的 `String` 类型，但可能是 `""`。
 
+`?.`（安全调用）与 `?:`（Elvis 操作符）是 Kotlin 空安全的核心语法，完整说明见[预备篇 D 的「可空类型与安全访问」](00D_Kotlin基础与Compose必备语法.md)。
+
 Dart 3 对照：
 
 ```dart
@@ -577,6 +581,7 @@ popBackStack ≈ pop
 
 项目变大后，建议集中管理，避免手写错误：
 
+<!-- compile decls -->
 ```kotlin
 object Routes {
     const val HOME = "home"
@@ -587,6 +592,8 @@ object Routes {
     }
 }
 ```
+
+`object` 声明单例、`const val` 声明编译期常量，语法说明见[预备篇 D 的「class、data class 与 object」](00D_Kotlin基础与Compose必备语法.md)。
 
 使用：
 
