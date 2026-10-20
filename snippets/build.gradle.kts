@@ -23,8 +23,8 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
     }
 
     buildFeatures {
@@ -40,7 +40,9 @@ android {
 
 kotlin {
     compilerOptions {
-        jvmTarget.set(JvmTarget.JVM_1_8)
+        // lifecycle 2.8+ 的 -android 构件以 JVM target 11 编译，其 inline 函数
+        // （如 collectAsStateWithLifecycle）要求消费方 jvmTarget >= 11 才能内联。
+        jvmTarget.set(JvmTarget.JVM_11)
         // 严格模式：由 -PsnippetsStrictWarnings 打开，用于发现弃用 API 等警告。
         allWarningsAsErrors.set(providers.gradleProperty("snippetsStrictWarnings").isPresent)
     }
