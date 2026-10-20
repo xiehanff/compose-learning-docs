@@ -82,7 +82,13 @@ fun FeedItemRow(item: FeedItem) {
 
 **场景：需要细粒度监听时，用 snapshotFlow 订阅列表状态变化。**
 
+<!-- compile
+prelude: val listState = rememberLazyListState()
+prelude: fun onLoadMore() {}
+-->
 ```kotlin
+import kotlinx.coroutines.flow.*
+
 LaunchedEffect(listState) {
     snapshotFlow {
         val info = listState.layoutInfo
@@ -97,9 +103,9 @@ LaunchedEffect(listState) {
 
 ## 4. 逐步解释
 
-**key 决定「谁是谁」。** LazyColumn 只渲染可视区附近的 item，滚动时插槽复用。没有 key 时，Compose 按位置对应 item；列表中间插入一条，后续所有 item 的位置都变了，全部重组，且 item 内部状态（如记住的滚动位置）会错乱挂到别的数据上。给了稳定 key（数据库 id），插入/删除只影响受影响的那几个 item，身份和状态都跟着数据走。**key 用 index 或常量等于没给 key**——index 在插入后全体漂移，常量让所有 item 共享一个身份。
+**key 决定「谁是谁」。** LazyColumn 只渲染可见窗口附近的 item，滚动时复用插槽。没有 key 时，Compose 按位置对应 item（第 17 章的身份实验）；列表中间插入一条，后续所有 item 的位置都变了，内容按新位置重新组合，且 item 内部状态（如记住的勾选态）会错乱挂到别的数据上。给了稳定 key（数据库 id），插入/删除只影响受影响的那几个 item，身份和状态都跟着数据走。**key 用 index 等于没给 key**——index 在插入后全体漂移，身份仍然跟着位置走；**所有条目共用同一个常量 key 更是直接错误**——key 在同一列表内必须唯一，重复 key 会在运行时抛异常，列表无法渲染（第 17 章同款结论）。
 
-**contentType 决定「怎么复用」。** 不同类型的 item（图片卡片、纯文本、视频）布局差异大，混在一个插槽池里反复重建。`contentType = { it.type }` 让 Compose 按类型分组复用插槽，同类型之间才互相复用，滚动更顺滑。
+**contentType 决定「怎么复用」。** 不同类型的 item（图片卡片、纯文本、视频）布局差异大，混在一起会让框架难以复用已有的组合与布局结构。`contentType = { it.type }` 让 Compose 按 contentType 分组复用（官方文档称为 layout reuse，布局重用）：同类型 item 之间才复用已构建的结构，避免跨类型反复重建，滚动更顺滑。
 
 **把工作移出 item。** item lambda 每次滑动都会被反复调用（组合+布局），在里面做昂贵计算、创建新对象，等于把成本乘上滚动频率。正确姿势：计算和状态提升到 item 之外（列表层算好再传入），item 内只做必要组合；确实要做的计算用 `remember(item.id)` 缓存，重复滚动不重算。item 里读全局 State 更要警惕——那会让整个列表跟着全局状态一起重组。
 
@@ -143,7 +149,7 @@ controller.addListener(() {
 
 ## 7. 常见错误
 
-- key 用 index 或不变常量：等于没有身份，插入/删除后全部重组、状态错乱
+- key 用 index：身份跟随位置漂移，插入/删除后内容错位重组、状态错乱；key 用不变常量：重复 key 在运行时直接抛异常，列表无法渲染
 - item 内读取全局状态（如顶层 `mutableStateOf`）：状态一变整个列表重组，滑动性能瞬间崩塌
 - 每帧在 item lambda 里创建新对象（新字符串、新列表）：对象分配触发频繁 GC，卡顿元凶之一
 - 无限滚动不做防重复请求：触底回调在数据到达前反复触发，同一页请求 N 次
@@ -159,9 +165,9 @@ controller.addListener(() {
 答案：
 
 1. key 提供稳定身份：插入/删除时 Compose 能精确定位受影响的 item，其余跳过重组；item 内部状态（remember）也按 key 归属数据。用 index 当 key，插入后所有 item 的 index 漂移，身份错乱，全量重组且状态挂错数据
-2. 让不同类型 item（图片/文本/视频）在不同插槽池中复用，避免跨类型反复重建，减少滚动时的构建开销
+2. 让同类型 item（图片/文本/视频）之间复用组合与布局结构（官方称 layout reuse），避免跨类型反复重建，减少滚动时的构建开销
 3. 监听 `listState.layoutInfo.visibleItemsInfo` 的最后一个可见项索引，距 totalItemsCount 不足阈值时触发加载；用 `derivedStateOf` 把越界判断变成派生状态，只在越过阈值时重组一次，直接读 layoutInfo 会导致每次滚动帧都触发重组
 
 ## 9. 本章总结
 
-Lazy 列表性能的四个杠杆：稳定 `key` 保证最小重组与状态正确，`contentType` 优化插槽复用，计算与状态外移（提升到 item 外、remember 缓存）砍掉滚动期开销，`derivedStateOf` + 触底检测实现按需加载。同时守住两条结构红线：item 高度稳定、绝不嵌套无限高度内容。把这几条做对，万级数据列表也能丝滑滚动。
+Lazy 列表性能的四个杠杆：稳定 `key` 保证最小重组与状态正确，`contentType` 优化组合与布局结构的复用，计算与状态外移（提升到 item 外、remember 缓存）砍掉滚动期开销，`derivedStateOf` + 触底检测实现按需加载。同时守住两条结构红线：item 高度稳定、绝不嵌套无限高度内容。把这几条做对，长列表滚动才有顺滑的基础；实际帧率仍应以 Macrobenchmark 在可重复条件下（release-like 构建、固定设备）测得的数字为准——本仓库未做任何设备实测，不宣称已验证的具体收益。

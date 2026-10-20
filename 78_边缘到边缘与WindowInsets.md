@@ -26,8 +26,8 @@
 ```kotlin
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
-        enableEdgeToEdge() // 系统栏透明，内容延伸到状态栏/导航栏后面
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge() // 系统栏透明，内容延伸到状态栏/导航栏后面
         setContent {
             // contentWindowInsets 默认来自 ScaffoldDefaults.contentWindowInsets（系统栏类 insets），
             // 不是 safeDrawing；而且 Scaffold 只把它算成 PaddingValues 交给我，不会自己应用
@@ -81,7 +81,7 @@ fun ChatPage() {
 
 3. 三种 modifier 的分工：windowInsetsPadding(insets) 按指定 insets 给组件加 padding；displayCutoutPadding() 只处理挖孔区域；imePadding() 只跟随键盘高度，键盘收起时为 0。关键点是这些 modifier 是响应式的——insets 变化（旋转、键盘弹出、折叠屏展开）会驱动布局阶段更新 padding，无需手动监听；内置 insets modifier 不要求每次变化都通过重组处理。
 
-4. Scaffold 的 insets 行为（最容易误解的一段，务必分清）：`contentWindowInsets` 的默认值来自 `ScaffoldDefaults.contentWindowInsets`（系统栏类 insets），不是 `safeDrawing`。而且 Scaffold **不会自己把 insets 应用到内容上**——它只是把这些 insets 算成一个 `PaddingValues`（也就是 content lambda 的 `innerPadding`）交给你，官方原话是："Scaffold does not apply the insets to content; this responsibility is yours."，应用与否是你的责任。上下方向还要看有没有栏，官方原话是："Scaffold will take the insets into account from the top/bottom only if the `topBar`/`bottomBar` are not present, as the scaffold expects `topBar`/`bottomBar` to handle insets instead."，即有对应方向的 topBar / bottomBar 时，该方向的 insets 由栏自己处理，`innerPadding` 主要剩下栏与内容之间的间距和没有栏的方向的安全区。此外，已经被祖先布局消费过的 insets 会从 `contentWindowInsets` 中排除；正确写法是给内容根同时用 `padding(innerPadding)` 与 `consumeWindowInsets(innerPadding)`，既应用了间距，又告诉内层「这份 insets 已经用掉了」。
+4. Scaffold 的 insets 行为（最容易误解的一段，务必分清）：`contentWindowInsets` 的默认值来自 `ScaffoldDefaults.contentWindowInsets`——以本仓库基线 material3 1.4.0 源码为准，它就是 `WindowInsets.systemBarsForVisualComponents`（系统栏类 insets），不是 `safeDrawing`。而且 Scaffold **不会自己把 insets 应用到内容上**——它只是把这些 insets 算成一个 `PaddingValues`（也就是 content lambda 的 `innerPadding`）交给你，应用与否是你的责任。material3 1.4.0 的 KDoc 原话是："The lambda receives a [PaddingValues] that should be applied to the content root via [Modifier.padding] and [Modifier.consumeWindowInsets]"——官方指定的正确用法正是「内容根同时应用 padding 与 consumeWindowInsets」。上下方向还要看有没有栏，同一节 KDoc 说明：只有未提供 `topBar` / `bottomBar` 时，对应方向的 insets 才会计入 contentWindowInsets；有栏时 Scaffold 预期由栏自己处理 insets。因此有 topBar 时，`innerPadding` 主要剩下栏高与栏到内容的间距，以及左右方向和没有栏方向的安全区。此外 KDoc 同样写明：被父布局的 insets padding 或 `consumeWindowInsets` 消费过的 insets，会从 `contentWindowInsets` 中排除。正确写法就是给内容根同时用 `padding(innerPadding)` 与 `consumeWindowInsets(innerPadding)`，既应用了间距，又告诉内层「这份 insets 已经用掉了」。
 
 5. consumeWindowInsets：当一个组件已消费（应用）了 insets，内层组件再读同一 insets 会重复计算。Modifier.consumeWindowInsets(insets) 标记"这段 insets 已处理"，让内层不再叠加。典型场景是 Scaffold 的 bottomBar 里嵌套需要 imePadding 的输入区。
 

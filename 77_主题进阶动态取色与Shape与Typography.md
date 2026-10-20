@@ -83,7 +83,7 @@ val AppTypography = Typography(
 
 5. Typography：默认提供 displayLarge 到 labelSmall 共 15 个文字样式角色，每个角色自带 Material 规范的字号、字重、行高。自定义字体时，推荐用 `Typography().titleLarge.copy(...)` 这种写法：从默认角色出发只改字体族/字重，保留其余默认参数；直接手写整个 TextStyle 容易丢掉规范字号与行高。前提是字体文件必须放在 res/font 目录并遵守 Android 资源命名规则，否则 R.font.xxx 无法解析。
 
-6. 主题与语义：主题不只是好看。primary 与 onPrimary 必须满足对比度要求（正文至少 4.5:1），状态层（state layer）通过 colorScheme 的透明度叠加实现按压、悬停反馈。动态取色下尤其要检查对比度，因为壁纸颜色不可控。
+6. 主题与语义：主题不只是好看。配色角色应满足无障碍对比度要求——按 WCAG AA 级，正文文本前景/背景对比度至少 4.5:1（大号文本约 3:1 即可）。这是设计规范层面的要求，平台运行时不会强制校验，需要设计与检查工具把关。状态层（state layer）通过 colorScheme 的透明度叠加实现按压、悬停反馈。动态取色下尤其要检查对比度，因为壁纸颜色不可控。
 
 记住：组件永远读主题的角色值，业务代码里不要写死颜色。
 

@@ -52,7 +52,7 @@ Card(Modifier.semantics(mergeDescendants = true) {
 }) { /* 卡片内容 */ }
 ```
 
-场景二：在 Android Studio 创建 Baseline Profile Generator 模块，并用自动化关键用户路径收集规则。
+场景二：在 Android Studio 创建 Baseline Profile Generator 模块，并用自动化关键用户路径收集规则。该片段属于仪器测试代码，**不在本仓库 snippets 工程的编译校验范围内**，需要独立的 generator 测试模块与真实设备才能运行；本章相关结论均为「待真机验证」。
 
 ```kotlin
 @RunWith(AndroidJUnit4::class)
@@ -78,7 +78,7 @@ class BaselineProfileGenerator {
 
 3. 隐藏、清除与覆盖不是同一件事：单个纯装饰 Image 使用 `contentDescription = null`；内容只需对无障碍服务隐藏、但仍希望测试等消费者访问时，可以使用 `hideFromAccessibility()`；`clearAndSetSemantics {}` 会清除自身和后代对无障碍、测试、自动填充等消费者提供的原语义，适合确实需要整体清除或重新定义自定义控件语义的场景，不应给所有装饰图片机械套用。
 
-4. 触控目标与字体缩放：Material 规范要求触控目标至少 48dp。Compose 会扩展过小 clickable 的触摸区域，但相邻小控件可能因此出现重叠，所以仍应使用 `sizeIn(minWidth = 48.dp, minHeight = 48.dp)` 等方式提供足够布局空间；自定义 pointerInput 更要手动保证尺寸。字号使用 sp，并尊重系统字体缩放，不要全局篡改 Density。
+4. 触控目标与字体缩放：Material 无障碍指南与 Android 无障碍实践都建议可点击元素的触控目标至少 48dp×48dp——这是设计规范建议（WCAG 目标尺寸另有自己的分档），不是系统强制：小于它不会报错，但读屏用户与粗手指用户会点不准。Compose 会自动扩展过小 clickable 的触摸区域（官方 api-defaults 文档说明：触摸区域会扩展到组件边界之外），但相邻小控件可能因此出现触摸区重叠，所以仍应使用 `sizeIn(minWidth = 48.dp, minHeight = 48.dp)` 等方式提供足够布局空间；Checkbox、Switch 等部分 Material 组件在可交互时已内部处理最小尺寸。自定义 pointerInput 更要手动保证尺寸。字号使用 sp，并尊重系统字体缩放，不要全局篡改 Density。
 
 5. Baseline Profile 是什么：它记录应用启动和关键用户路径中的热点代码，帮助 ART 提前优化这些路径，改善首次启动、滚动和导航等体验。当前推荐通过独立 Generator/Benchmark 模块、BaselineProfileRule 与 Gradle 插件自动生成，而不是让初学者手工猜测类和方法规则。生成任务会把结果复制到目标 app 对应的 generated baselineProfiles 源目录，并由构建工具打包。
 
@@ -127,7 +127,7 @@ testWidgets('触控目标测试', (tester) async {
 ## 7. 常见错误
 
 1. 图片语义使用过度或不足：有意义的图片缺少描述；纯装饰 Image 却添加重复描述；或者为了隐藏一个图片清掉整个父子树。按“表达含义、仅隐藏、整体重写”分别选 API。
-2. 触控目标小于 48dp：自定义手势区域做小，读屏用户与手指粗的用户都点不到。保证可交互区域 ≥48dp。
+2. 触控目标小于 48dp：自定义手势区域做小，读屏用户与手指粗的用户都点不准。保证可交互区域 ≥48dp（规范建议值，见 4.4）。
 3. 用 px 写死字号或全局改 Density：破坏系统字体缩放，视障用户无法放大文字。用 sp 语义，尊重系统设置。
 4. 手工猜规则或只看生成文件：Profile 应由真实关键用户路径生成，并使用 Macrobenchmark 验证实际收益。
 5. 混淆后反射类崩溃：R8 删掉了反射引用的类/方法。在 proguard-rules.pro 里加 keep 规则。
@@ -149,7 +149,7 @@ testWidgets('触控目标测试', (tester) async {
 
 ## 9. 本章总结
 
-发布质量 = 无障碍 + 可测性能 + 可复现构建检查。语义让辅助技术用户真正可用；由关键用户路径生成并经 Macrobenchmark 验证的 Baseline Profile 改善真实体验；R8、资源缩减和 AAB 则需要发布前回归。任何“优化已生效”的结论都必须有工具输出或基准数据支持。
+发布质量 = 无障碍 + 可测性能 + 可复现构建检查。语义让辅助技术用户真正可用；由关键用户路径生成并经 Macrobenchmark 验证的 Baseline Profile 改善真实体验；R8、资源缩减和 AAB 则需要发布前回归。任何“优化已生效”的结论都必须有工具输出或基准数据支持。还要写清边界：TalkBack 朗读效果、触控目标实测、Profile 收益与混淆后行为，都必须在真机上才能得出结论——本章只给出方法与检查清单，未做任何设备实测，相关结论一律为「待真机验证」。
 
 官方参考：
 

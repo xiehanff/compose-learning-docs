@@ -38,8 +38,12 @@ composeCompiler {
 
 构建后会在配置目录中生成稳定性、Composable 与模块指标等文本/CSV/JSON 文件。具体文件名可能随 Compose Compiler 版本变化，应以当前目录实际产物和对应版本文档为准。
 
-场景二：一条典型「过度重组」代码与修复（把状态从大范围降到小范围）。
+场景二：一条典型「过度重组」代码与修复（把状态从大范围降到小范围）。Header / StatsChart 为教学占位组件。
 
+<!-- compile decls
+prelude: @Composable fun Header() = Unit
+prelude: @Composable fun StatsChart() = Unit
+-->
 ```kotlin
 // 可优化示范：页面级读取输入状态，输入变化会使 ProfileScreen 进入重组
 @Composable
@@ -51,7 +55,13 @@ fun ProfileScreen() {
         StatsChart()     // 昂贵图表也被反复重组
     }
 }
+```
 
+<!-- compile decls
+prelude: @Composable fun Header() = Unit
+prelude: @Composable fun StatsChart() = Unit
+-->
+```kotlin
 // 修复：把状态压到最小作用域
 @Composable
 fun ProfileScreen() {
@@ -69,7 +79,7 @@ private fun NameEditor() {
 }
 ```
 
-场景三：在独立 `benchmark` 测试模块中编写 Macrobenchmark。该模块使用 `com.android.test`，并把 app 配置为 target project；不要直接把 Macrobenchmark 当作普通 app 模块 UI 测试。
+场景三：在独立 `benchmark` 测试模块中编写 Macrobenchmark。该模块使用 `com.android.test`，并把 app 配置为 target project；不要直接把 Macrobenchmark 当作普通 app 模块 UI 测试。注意：这类仪器测试片段不在本仓库 snippets 工程的编译校验范围内，其运行与所有耗时数字都必须来自真实设备上的独立 benchmark 工程重复测量；本章不包含任何已验证的性能数字，相关结论一律为「待设备/仪器验证」。
 
 ```kotlin
 @RunWith(AndroidJUnit4::class)
@@ -96,7 +106,7 @@ class StartupBenchmark {
 
 1. Layout Inspector 能看什么：在 Android Studio 里连接运行中的进程并查看 Compose 节点，可以观察组合结构、重组次数和跳过次数。计数只能帮助发现可疑范围，不能单独证明卡顿；最终仍要结合系统 Trace、Macrobenchmark 或其他帧指标确认真实耗时。
 
-2. 编译器报告是什么：Compose 编译器可以输出类型稳定性、Composable 属性和模块指标，帮助解释 restartable、skippable 等推断。Kotlin 2.0.20 起默认启用强跳过后，带不稳定参数的 restartable Composable 也可能成为 skippable，因此不能再使用“出现 unstable 就一定无法跳过”的旧结论。
+2. 编译器报告是什么：Compose 编译器可以输出类型稳定性、Composable 属性和模块指标，帮助解释 restartable、skippable 等推断。Kotlin 2.0.20（Compose Compiler 2.0.20）起默认启用强跳过后，带不稳定参数的 restartable Composable 也可能成为 skippable，因此不能再使用“出现 unstable 就一定无法跳过”的旧结论。
 
 3. 不稳定参数意味着什么：编译器不能确认变化能被可靠观察。强跳过模式对稳定参数使用 `equals`，对不稳定参数使用引用相等。`List` 被认为不稳定，是因为接口不能保证内容不可变，并不是因为 Kotlin `List.equals` 不可靠。可选方案包括不可变 UI model、SnapshotState 集合、kotlinx immutable collection，或在确实满足契约时使用稳定性注解。先测量再选择，便宜的重组可能比复杂的相等检查更划算。
 
@@ -158,3 +168,4 @@ MaterialApp(
 
 - [Macrobenchmark overview](https://developer.android.com/topic/performance/benchmarking/macrobenchmark-overview)
 - [Diagnose stability issues](https://developer.android.com/develop/ui/compose/performance/stability/diagnose)
+- [Strong skipping mode](https://developer.android.com/develop/ui/compose/performance/stability/strongskipping)
