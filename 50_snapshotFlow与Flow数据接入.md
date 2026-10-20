@@ -25,10 +25,17 @@
 
 ## 3. 项目源码片段
 
-场景一：搜索框输入防抖。keyword 每次按键都在变，但我们只希望在用户停止输入 300ms 后才真正发起搜索。下面的 `SearchViewModel` 是节选占位：只需提供 `suspend/普通 search(query)` 与结果状态即可，不代表完整实现。
+场景一：搜索框输入防抖。keyword 每次按键都在变，但我们只希望在用户停止输入 300ms 后才真正发起搜索。`SearchViewModel` 在编译校验里用只含 `search` 的最小接口占位（真实项目中它是暴露 `search` 与结果状态的 ViewModel，见第 68 章）：
 
+<!-- compile decls
+prelude: interface SearchViewModel { suspend fun search(query: String) }
+-->
 ```kotlin
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+
 @Composable
+@OptIn(kotlinx.coroutines.FlowPreview::class)  // debounce 是 FlowPreview API，使用处需显式 opt-in
 fun SearchScreen(viewModel: SearchViewModel) {
     var keyword by remember { mutableStateOf("") }
 
@@ -48,7 +55,7 @@ fun SearchScreen(viewModel: SearchViewModel) {
 }
 ```
 
-场景二（学完第 68、70 章后回看）：把 ViewModel 的 Flow 接回 UI，并感知生命周期。`Loading/Success/Error` 为节选占位（密封接口表示 UI 状态的三个分支）。
+场景二（学完第 68、70 章后回看）：把 ViewModel 的 Flow 接回 UI，并感知生命周期。`Loading/Success/Error` 为节选占位（密封接口表示 UI 状态的分支；完整的 loading/error/empty/content 四态建模见第 68 章场景四）。
 
 ```kotlin
 @Composable
@@ -68,13 +75,15 @@ fun ResultList(viewModel: SearchViewModel) {
 
 `snapshotFlow { ... }` 是连接两个世界的桥，先讲清它的三条规则：
 
-**第一，冷流与收集时机。** 它返回冷 Flow：每次开始收集时执行一次 block（发射当前值），并记录 block 里读取的所有快照状态（State）作为依赖；之后依赖变化时重新执行 block。它本身不依赖组合——在普通协程里照样可以 collect（比如在测试或非 UI 代码中）；放进 `LaunchedEffect` 是为了把收集绑定到组合生命周期，而不是因为离开了组合就不能用。
+**第一，冷流与收集时机。** 它返回冷 Flow：每次开始收集时执行一次 block（发射当前值），并记录 block 里读取的所有快照状态（State）作为依赖；之后依赖变化时重新执行 block。它本身不依赖组合——在普通协程里照样可以 collect（比如在测试或非 UI 代码中）；放进 `LaunchedEffect` 是为了把收集绑定到组合生命周期，而不是因为离开了组合就不能用。这句话反过来也成立：冷流的生命周期跟着收集协程走——收集被取消（如 LaunchedEffect 离开组合）时，block 不再执行、对快照状态的读取也不再被追踪，既不会继续发射，也不会有残留的监听。
 
 **第二，内建去重。** 官方文档明确：只有当 block 的新结果与上一次发射的值**不相等**（equals）时才发射，行为类似 `Flow.distinctUntilChanged()`。所以「每次写必发射」是误解。这个去重还有另一面：**同一快照内的多次写入、以及未及应用的写入可能合并成一次重算与发射**，因此不要把 snapshotFlow 当作可靠的事件日志——它是「状态当前值」的流，不承诺保留每一次中间变化的历史。
 
 **第三，只追踪 State 读取。** block 里读普通变量不建立依赖，值变了也不会重新执行 block。
 
-防抖搜索是它的经典用法：每次按键都可能发射新值，`debounce(300)` 只在停止输入 300ms 后放行最后一个值。debounce 之后的 `distinctUntilChanged()` 仍有价值：它过滤的是「防抖窗口之间」的重复——比如输入「com」、删成「co」、又打回「com」，两个 300ms 窗口各自放行相同的值，snapshotFlow 的去重管不到这种时间上分离的重复。最后 `collect` 触发搜索。注意防抖**不会取消已经开始的搜索**：它只约束「什么时候发起」，不管「发起之后」；如果需求是「新关键词出现时取消进行中的旧搜索」，应在搜索侧使用可取消的结构（如 `collectLatest`/`mapLatest`/`flatMapLatest`，或搜索逻辑自身支持取消），且这依赖 `viewModel.search` 的实现方式（挂起函数、返回 Job 或 Flow），不能凭空保证。
+三条规则合起来就是 snapshotFlow 的**职责边界：它是「从 UI 状态读出」的桥，不是通用 Flow 的替代品**。它管的只有一件事：把 UI 里已经存在的快照状态交给协程世界处理（防抖、打点、驱动动画）。反方向的数据——网络、数据库等业务数据源——应该作为普通 Flow/StateFlow 从 ViewModel 流入，用 collectAsStateWithLifecycle 收集（第 68 章）；把业务数据写进快照状态再用 snapshotFlow 读出来，等于绕了一圈还丢掉了 ViewModel 层的状态管理。判断方法很简单：这个值是「在 UI 里被用户改出来的」就用 snapshotFlow 读出去，是「从外面流进来的」就让 Flow 直接进来。
+
+防抖搜索是它的经典用法：每次按键都可能发射新值，`debounce(300)` 只在停止输入 300ms 后放行最后一个值。注意 `debounce` 目前是 kotlinx.coroutines 的 FlowPreview（预览）API，在本仓库基线中调用它需要在函数上 `@OptIn(kotlinx.coroutines.FlowPreview::class)` 显式启用。debounce 之后的 `distinctUntilChanged()` 仍有价值：它过滤的是「防抖窗口之间」的重复——比如输入「com」、删成「co」、又打回「com」，两个 300ms 窗口各自放行相同的值，snapshotFlow 的去重管不到这种时间上分离的重复。最后 `collect` 触发搜索。注意防抖**不会取消已经开始的搜索**：它只约束「什么时候发起」，不管「发起之后」；如果需求是「新关键词出现时取消进行中的旧搜索」，应在搜索侧使用可取消的结构（如 `collectLatest`/`mapLatest`/`flatMapLatest`，或搜索逻辑自身支持取消），且这依赖 `viewModel.search` 的实现方式（挂起函数、返回 Job 或 Flow），不能凭空保证。
 
 `collectAsState` 把任意 Flow 转成 State：Flow 发射新值时更新 State，读取它的 UI 重组。`collectAsStateWithLifecycle` 来自 lifecycle-runtime-compose，是生命周期感知的：只在 Lifecycle 处于 STARTED 及以上才收集，退到后台自动停止、回前台恢复。**两者核心区别就是生命周期感知**：屏幕不在前台时，普通版本仍在收集，可能白白执行昂贵的 Flow 操作。
 
@@ -130,6 +139,7 @@ class _SearchScreenState extends State<SearchScreen> {
 4. block 里读普通变量：不建立快照依赖，值变了也永远不重新执行
 5. 以为防抖能取消进行中的请求：debounce 只约束发起时机，取消要靠搜索侧可取消的结构（collectLatest/flatMapLatest 或自身支持取消），且取决于 search 的实现方式
 6. 忘记 debounce 之后的 distinctUntilChanged：时间上分离的重复（删字又打回）防不住，会在两个窗口后重复触发搜索
+7. 把 snapshotFlow 当通用数据源用：业务数据不走 ViewModel 的 Flow，反而写进快照状态再用 snapshotFlow 读出来——它的职责只是「UI 状态读出」的桥，反向请用 StateFlow + collectAsStateWithLifecycle（第 68 章）
 
 ## 8. 本章检查题
 
@@ -137,17 +147,21 @@ class _SearchScreenState extends State<SearchScreen> {
 2. collectAsState 与 collectAsStateWithLifecycle 的核心区别是什么？
 3. flowOn(Dispatchers.IO) 能解决什么、不能解决什么？
 4. 防抖之后为什么还要 distinctUntilChanged？防抖能取消已开始的搜索吗？
+5. （预测行为）keyword 当前值是「abc」，再写入一次完全相同的「abc」，snapshotFlow 会发射吗？为什么？
+6. （动手修改）在 debounce 之前和之后各接一个 `.onEach { println("经过：$it") }`（import kotlinx.coroutines.flow.onEach），快速输入「comp」再改成「compose」，观察两处分别打印了什么，解释差异。
 
 答案：
 
-1. 冷流：开始收集时执行一次 block 发射当前值；之后依赖变化重算 block，只有新结果与上次发射值不相等（equals）时才发射。它不依赖组合，普通协程中也能收集；放 LaunchedEffect 是为了绑定生命周期
+1. 冷流：开始收集时执行一次 block 发射当前值；之后依赖变化重算 block，只有新结果与上次发射值不相等（equals）时才发射。它不依赖组合，普通协程中也能收集；放 LaunchedEffect 是为了绑定生命周期。收集协程取消后，block 停止执行、不再追踪读取
 2. 后者感知生命周期，只在 STARTED 及以上收集，退后台停止、回前台恢复；前者无条件收集
 3. 能把上游操作的执行线程切到 IO；不能切走 collect 块（跟随收集者上下文），也不能让不可取消的上游自动可取消
 4. snapshotFlow 的去重只比较相邻发射值，防抖窗口之间时间上分离的重复需要再过滤；防抖不取消已开始的搜索，取消需要搜索侧本身可取消（如 collectLatest/flatMapLatest 或挂起实现）
+5. 不发射。mutableStateOf 默认按结构相等判断写入，相等值的写入不产生状态失效，block 不会重新执行；即便重算，snapshotFlow 的内建去重也会拦下相同结果
+6. debounce 之前的位置打印两次：「comp」和「compose」各经过一次（每次按键变化都会流到上游操作符）；debounce 之后只打印一次「compose」——防抖窗口内只放行最后一个值
 
 ## 9. 本章总结
 
-snapshotFlow 把快照状态变成冷流：只追踪 State 读取、结果去重、可在任意协程收集，配合 debounce/distinctUntilChanged 处理高频输入；collectAsStateWithLifecycle 把外部 Flow 以生命周期感知的方式接回 UI。数据流双向打通，Compose 与协程世界就真正融合了。
+snapshotFlow 把快照状态变成冷流：只追踪 State 读取、结果去重、收集取消即停止追踪，配合 debounce/distinctUntilChanged 处理高频输入；它只是「UI 状态读出」的桥，不是通用 Flow 的替代品。collectAsStateWithLifecycle 把外部 Flow 以生命周期感知的方式接回 UI。数据流双向打通，Compose 与协程世界就真正融合了。
 
 官方参考：
 

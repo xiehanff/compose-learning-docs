@@ -43,7 +43,7 @@ fun Countdown(
 }
 ```
 
-场景二：在 Button 的 onClick 中启动协程加载数据。onClick 不是组合上下文，没有组合作用域可用。
+场景二：在 Button 的 onClick 中启动协程加载数据。onClick 不是组合上下文，没有组合作用域可用。`MyViewModel` / `fetchData` / `updateUi` 是节选占位（换成任何挂起加载方法都行），不参与编译校验。
 
 ```kotlin
 @Composable
@@ -61,9 +61,31 @@ fun LoadButton(viewModel: MyViewModel) {
 }
 ```
 
+场景三：协程**永不应当重启**的长任务——key 固定为 `Unit`，协程在组合存活期间一直运行，期间一切会变化的引用都必须走 rememberUpdatedState。这正好和场景一互补：那里时长是重启的正当理由，这里什么都不该触发重启：
+
+<!-- compile decls -->
+```kotlin
+@Composable
+fun PulsingLog(onTick: () -> Unit) {
+    // key = Unit：进入组合只启动一次；onTick 变化不重启协程
+    val currentOnTick by rememberUpdatedState(onTick)
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(500)
+            // 协程体捕获的是 State 对象：每次执行都读到最新的 onTick，
+            // 而不是协程启动那一刻捕获的旧引用
+            currentOnTick()
+        }
+    }
+}
+```
+
 ## 4. 逐步解释
 
 先看问题的根源：`LaunchedEffect` 的协程体是启动那一刻生成的闭包，里面直接引用的参数会被捕获为「当时的值」。如果不写 rememberUpdatedState，倒计时期间父组件换了回调，协程里拿到的仍是旧引用；如果时长参数变了而 key 用 Unit，协程也不会按新时长重启。所以本例 key 用 `seconds`（时长是重启的正当理由），回调的「保鲜」交给 rememberUpdatedState。
+
+先把两条路线的差别一句话锁死：**key 变化 = 取消旧协程、启动新协程**——delay 等挂起点被取消，一切从头执行；**rememberUpdatedState = 协程活着，只换值**——进行中的挂起与循环不受打扰，下一次读取自然拿到新值。预期效果也跟着分清：key 不变、参数变 → 协程照常运行，恢复执行时读到新值（场景一换回调、场景三换 onTick 都属于这类）；key 变 → 旧协程取消，注意取消发生在挂起点，已过期的回调不会再被调用，新协程按新 key 从头执行。判断口诀：先问「这个变化该不该让工作重头来」，该重启就放进 key，不该重启就用 rememberUpdatedState 读。
 
 `rememberUpdatedState(onFinished)` 的实现并不神秘：它 `remember` 一个 `mutableStateOf(onFinished)`，并在每次重组时把值更新为最新参数。三个关键点：
 
@@ -83,6 +105,7 @@ fun LoadButton(viewModel: MyViewModel) {
 4. 10 秒后 delay 返回，协程恢复执行，读取 currentOnFinished 的当前值并调用
 5. 若此时 Countdown 已离开组合：协程随 LaunchedEffect 取消，不会调用回调；组件重新进入组合时，一切从头开始（新 scope、新协程）
 6. 点击按钮时：scope.launch 启动加载协程，挂起期间若页面退出，scope 自动取消，加载协程一并取消
+7. 场景三中：LaunchedEffect(Unit) 的协程在组合存活期间每 500ms 醒一次，每次读 currentOnTick 的当前值再调用；父组件换回调不改变节奏；组件离开组合时协程随 effect 取消，循环终止
 
 ## 6. Flutter / Dart 3 对照
 
@@ -150,6 +173,7 @@ class _CountdownState extends State<Countdown> {
 2. Countdown 场景里 LaunchedEffect 的 key 应该用什么？为什么？
 3. 为什么直接捕获 onFinished 会拿到过期值？
 4. 把 rememberCoroutineScope 的 scope 存进 ViewModel，会发生什么？
+5. （预测行为）把 Countdown 的 key 从 seconds 改成 Unit：倒计时进行到第 4 秒时父组件把 seconds 从 10 改成 5，倒计时会缩短吗？改回 LaunchedEffect(seconds) 后同样的变化会发生什么？
 
 答案：
 
@@ -157,6 +181,7 @@ class _CountdownState extends State<Countdown> {
 2. 用 seconds 这类「值得重启 effect」的输入：时长变化需要重新倒计时；回调引用走 rememberUpdatedState 保鲜，不该作为 key（否则换回调会重启长任务）
 3. LaunchedEffect 协程体在启动时捕获参数值，之后参数变化不会更新闭包内的旧引用；读 State 的当前值而不是捕获参数值才能拿到最新
 4. 不会阻止取消（组合销毁时 scope 照常 cancel）；危害是所有权错配——ViewModel 持有已取消的 scope，用它 launch 的协程静默失败，且引用延长了已销毁组合对象的生命周期
+5. 不会缩短：key 为 Unit 时参数变化不重启协程，旧的 delay(10 秒) 继续按原时长执行。改回 LaunchedEffect(seconds) 后，seconds 变化触发旧协程取消、按新值 5 秒重新倒计时
 
 ## 9. 本章总结
 

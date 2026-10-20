@@ -24,6 +24,7 @@
 
 典型场景：列表滚动过第一项时显示「回到顶部」按钮。`firstVisibleItemIndex` 随滚动不断变化（1、2、3……），但按钮显示与否只取决于「是否跨过 0」这个低频边界。
 
+<!-- compile -->
 ```kotlin
 val listState = rememberLazyListState()
 val scope = rememberCoroutineScope() // 点击回调需要启动滚动协程；协程见第 29 章
@@ -46,11 +47,46 @@ if (showBackToTop) {
 
 对比低效写法：直接在组合中读取原始状态做判断。
 
+<!-- compile
+prelude: val listState = rememberLazyListState()
+-->
 ```kotlin
 // firstVisibleItemIndex 每变一次（每滚过一项）都会让读取处重组，
 // 即使 true/false 这个结果根本没变
 val show = listState.firstVisibleItemIndex > 0
 ```
+
+反方向的反例：有时候根本**不该**包 derivedStateOf。输入低频、计算便宜、结果与输入同频变化时，包一层只会白加节点——这也是官方文档给出的反例（拼接姓名）：
+
+<!-- compile -->
+```kotlin
+var firstName by remember { mutableStateOf("三") }
+var lastName by remember { mutableStateOf("张") }
+
+// 反例（能编译，但官方文档明确标注不该这样用）：
+// fullNameBad 的更新频率与输入完全同频，相等性过滤永远过滤不掉任何东西
+val fullNameBad by remember { derivedStateOf { "$lastName$firstName" } }
+
+// 正确：直接计算。输入每次变化 UI 本来就该更新，重算成本可忽略
+val fullName = "$lastName$firstName"
+Text("反例：$fullNameBad／正确：$fullName")
+```
+
+同款场景换成列表：数据频繁刷新（每次拉取都用新列表**替换**整个 State），但「有没有数据」这个布尔很少翻转。输入是整个列表，输出是布尔——这正是 derivedStateOf 的形状：
+
+<!-- compile -->
+```kotlin
+var items by remember { mutableStateOf(listOf<String>()) }
+
+// 输入：列表 State（每次刷新替换新实例）；输出：布尔，只在跨过空/非空边界时更新
+val hasData by remember { derivedStateOf { items.isNotEmpty() } }
+
+if (!hasData) {
+    Text("暂无数据")
+}
+```
+
+注意这里的输入必须是「State 的替换」：lambda 追踪的是对 `items` 这个 State 的读取；原地修改一个 `MutableList` 的内容不会被感知（与第 47 章可变集合的告诫一致），必须用新列表替换 State 值。
 
 ## 4. 逐步解释
 
@@ -66,9 +102,11 @@ val show = listState.firstVisibleItemIndex > 0
 
 与「组合中直接计算」的区别：直接写 `listState.firstVisibleItemIndex > 0`，每次该状态变化都会让读取处重组，无论结果是否变化；derivedStateOf 在状态与 UI 之间加了一层「带缓存与相等性过滤的计算节点」。它与 `remember + mutableStateOf` 不是替代关系：后者需要你在某个时机手动写入新值，不是「派生」；派生意味着依赖变化自动重算。
 
+与 `remember { 计算 }` 的区别则是本章审校重点：**remember 缓存「计算结果」，但不知道计算依赖了什么**。`remember { expensive(x) }` 只在首次组合算一次，之后即使 `x` 是 State 且值变了，也不会重算（拿到的是过期结果）；除非你自己把依赖列成 key——`remember(x) { expensive(x) }`——漏列一个就过期。derivedStateOf 的 lambda 自动追踪其中读取的所有 State：依赖变了就重算，结果变了才通知读取者。一句话对比：remember 的依赖要你手工声明，derivedStateOf 的依赖自动追踪。所以组合内的标准写法是两层嵌套：`remember { derivedStateOf { ... } }`——remember 负责「跨重组保住派生实例」，derivedStateOf 负责「追踪依赖 + 过滤结果」。带 key 的 remember 缓存派生结果在第 22 章已经用过，两章合起来看：**key 能枚举清楚就 remember(key)，依赖太多或变化高频就 derivedStateOf，便宜的直接算**。
+
 与 LaunchedEffect+状态的区别：derivedStateOf 是纯计算，无副作用，结果可被缓存和比较；LaunchedEffect 用于执行副作用（网络请求、日志），每次触发都是一次全新执行。把网络请求写进 derivedStateOf 是典型错误——它可能在任意重组时机被调用多次，且不应有副作用。
 
-最后记住适用边界（官方文档的原话大意）：「输入变化比 UI 需要更新的频率更高时」才用 derivedStateOf。把两个低频 State 拼成 `firstName + lastName` 这类结果与输入同频变化的派生，纯属白白加一层节点。
+最后记住适用边界（官方文档的原话大意）：「输入变化比 UI 需要更新的频率更高时」才用 derivedStateOf。官方同时明确警告 derivedStateOf 本身有开销（创建并维护派生节点不免费）：只有「避免掉的更新」比这层开销更值钱时才划算。把两个低频 State 拼成 `firstName + lastName` 这类结果与输入同频变化的派生，纯属白白加一层节点——典型形状是**输入高频、输出低频、中间有阈值边界**；只要输入不比输出变化得更频繁，就直接算。
 
 ## 5. 实际执行过程
 
@@ -125,6 +163,7 @@ class _ListPageState extends State<ListPage> {
 4. 过度使用：结果与输入同频变化的简单派生（拼接姓名、格式化低频文本）直接算即可；derivedStateOf 只在「输入高频、输出低频」时有价值
 5. 在 lambda 中调用 Composable：derivedStateOf 不是组合上下文，内部不能调用 @Composable 函数
 6. 把 derivedStateOf 当防抖用：它只过滤「结果没变」的情况，不提供时间维度的 debounce；时序需求用 Flow 的 debounce（第 50 章）或手势结束回调
+7. 用无 key 的 `remember { f(x) }` 缓存依赖 State 的计算：x 变了结果还是旧值（过期缓存）。依赖能枚举就把依赖写成 key（`remember(x)`），变化高频就走 derivedStateOf，便宜的干脆直接算
 
 ## 8. 本章检查题
 
@@ -132,17 +171,21 @@ class _ListPageState extends State<ListPage> {
 2. 依赖变化后，结果每次都更新 UI 吗？
 3. derivedStateOf 必须在组合内创建吗？remember 在这里起什么作用？
 4. 为什么不能在 derivedStateOf 里做副作用？
+5. （预测行为）列表从 firstVisibleItemIndex = 5 滚到 9，读取 showBackToTop 的作用域会重组吗？继续滚回 0 呢？
+6. （动手修改）把主示例的派生条件改成 `firstVisibleItemIndex > 3`，按钮应何时出现？再故意去掉 remember、只写 `val x = derivedStateOf { ... }` 并读取，先预测显示是否仍正确，再解释为什么这种写法仍不推荐。
 
 答案：
 
-1. 输入状态变化频率高于 UI 需要更新频率（变化有阈值边界）的场景，如滚动位置 → 是否显示按钮；类似 Flow.distinctUntilChanged
+1. 输入状态变化频率高于 UI 需要更新频率（变化有阈值边界）的场景，如滚动位置 → 是否显示按钮、列表整体 → 是否有数据；类似 Flow.distinctUntilChanged
 2. 不一定。依赖变化触发重算，但结果与上次相等就不更新；只有结果变化才反映给读取者
 3. 不是。它是普通函数，可在组合外（如 StateHolder 类）创建；组合内用 remember 是为了跨重组保留同一个实例，保住依赖记录与结果缓存
 4. 因为它可能在任意重组时机被多次执行，且属于纯计算节点；副作用应放在 LaunchedEffect 等副作用作用域
+5. 滚到 9 不重组：5 到 9 的重算结果都是 true，与缓存相等，不更新；滚回 0 时重组一次（true → false，结果变化）
+6. 按钮在滚过第 3 项后出现（跨过 3 这个新边界）。去掉 remember 后显示仍然正确——每次重组新建的 derivedStateOf 实例同样会正确追踪依赖并计算当前值——但实例跨重组不复用，依赖记录与结果缓存每次重建，白白付出开销（见常见错误第 2 条）
 
 ## 9. 本章总结
 
-derivedStateOf 在「高频状态 → 低频结果」之间建立带缓存与相等性过滤的派生节点，是声明式降频的标准工具，但只用于真正有阈值边界的地方。它是普通函数、组合内外皆可创建；组合内记得用 remember 保住实例。
+derivedStateOf 在「高频状态 → 低频结果」之间建立带缓存与相等性过滤的派生节点，是声明式降频的标准工具，但只用于真正有阈值边界的地方（它本身有开销，结果与输入同频变化的直接算）。它是普通函数、组合内外皆可创建；组合内记得用 remember 保住实例。与 remember{ 计算 } 的分工：remember 缓存结果、依赖靠 key 手工声明；derivedStateOf 自动追踪读取的 State，结果变化才通知。
 
 官方参考：
 
