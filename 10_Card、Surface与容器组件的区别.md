@@ -60,7 +60,7 @@ Compose 没有 Flutter 那种同时提供尺寸、边距、背景、圆角、边
 | 最小触摸目标 | 无 | 见下方版本说明 | 见下方版本说明 |
 | 所属库 | Compose Foundation（非 Material） | Material 3 | Material 3 |
 
-> 版本说明（以本仓库基线 `snippets/gradle/libs.versions.toml` 为准，升级后需复核）：「最小触摸目标」在本基线中主要由 Foundation 的 `Modifier.clickable` 提供——`onClick` 版本的 Surface / Card 内部使用 clickable，其命中区域会外扩到最小触摸目标（`ViewConfiguration.minimumTouchTargetSize`，接口默认 48 x 48dp），但**不改变视觉布局尺寸**；不可点击的 Surface / Card 与 Box 一样没有任何最小尺寸保障。Material 3 另外提供 `Modifier.minimumInteractiveComponentSize()`（可用 `LocalMinimumInteractiveComponentEnforcement` 关闭）用于在布局层面为小组件保留最小交互尺寸，本基线中它未被 Surface / Card 直接使用。
+> 版本说明（以本仓库基线 `snippets/gradle/libs.versions.toml` 为准，material3 1.4.0，升级后需复核）：「最小触摸目标」在本基线中由 Material 3 层提供——可点击（`onClick` 版本）的 Surface 在修饰符链里先应用 `Modifier.minimumInteractiveComponentSize()`，再放表面与 clickable：只要父约束允许，它会在**布局层面**预留最小交互空间（`LocalMinimumInteractiveComponentSize`，默认 48 x 48dp），不改视觉尺寸，但布局占位与命中区域都会扩大；可点击的 Card 与 Button 内部都委托这个 Surface，因此同样获得该行为。不可点击的 Surface / Card 没有这一保障，与 Box 一样。要关闭它，可在 `LocalMinimumInteractiveComponentSize` 中提供 `0.dp`（material3 1.4.0 起；旧的 `LocalMinimumInteractiveComponentEnforcement` 已弃用）。第 7 章讲过的 foundation 层 `clickable` 命中外扩是另一层机制：它只扩命中判定，不改变布局占位。
 
 ### 4.2 演示一：三者并排，同一内容不同容器
 
@@ -86,7 +86,7 @@ Column(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.surfaceVariant,
-        // tonalElevation = 6.dp,  // 也可以叠加「色调高度」：用颜色深浅表达层级
+        // tonalElevation = 6.dp,  // 「色调高度」叠加只在容器色为 surface 时改变底色，见检查题 5
     ) {
         Box(
             modifier = Modifier.fillMaxWidth().height(56.dp),
@@ -199,15 +199,15 @@ Box(Modifier.clickable { /* A 逻辑 */ }) {
 2. Surface 的 contentColor 有什么价值？
 3. Flutter Container 在 Compose 中通常由哪些能力组合？
 4. 预测：一个高 40dp 的 `Surface(onClick = { ... }) { Text("小按钮") }`，视觉高度是多少？可点击的高度呢（按本仓库基线）？
-5. 动手：把 4.2 节演示一中的 Surface 加上 `tonalElevation = 6.dp`，先预测颜色变化方向（更深还是更浅由主题决定，观察的是「变化」本身），再运行对比。
+5. 动手：把 4.2 节演示一中的 Surface 的 `color` 改为 `MaterialTheme.colorScheme.surface`，再加上 `tonalElevation = 6.dp`，先预测颜色变化方向（更深还是更浅由主题决定，观察的是「变化」本身），再运行对比；随后把 `color` 改回 `surfaceVariant` 加同样的 `tonalElevation`，观察有什么不同。
 
 答案：
 
 1. Card(onClick) 自带 Material 卡片语义、正确的交互和涟漪反馈，以及 CardDefaults 默认样式；Box.clickable 只有点击行为，没有卡片语义和 Material 表面样式。
 2. contentColor 会向子树传播与表面背景形成对比的内容颜色，保证表面上的文字、图标可读性。
 3. Box + Modifier 链（size、padding、background、border、clip、align 等）。
-4. 视觉高度仍是 40dp（clickable 的触摸目标外扩不改变布局）；可点击区域会向外扩到最小触摸目标（本基线默认 48 x 48dp），即上下各多出约 4dp、左右按需要外扩的命中带。
-5. tonalElevation 会让 Surface 的底色用「更高表面层」的颜色表达层级，颜色变深还是变浅取决于主题配置；预期观察到的确定结果是：颜色发生了变化，而阴影（shadowElevation）没有变化。
+4. 视觉高度仍是 40dp（预留的是布局空间，不改视觉尺寸）；但可点击 Surface 会经 `minimumInteractiveComponentSize()` 预留最小交互空间——父约束允许时布局占位至少 48 x 48dp（本基线默认），比 40dp 多出的占位也纳入命中范围。要让占位保持 40dp，需用 `LocalMinimumInteractiveComponentSize` 提供 `0.dp` 关闭（见 4.1 版本说明）。
+5. 色调高度叠加只在容器色为 `colorScheme.surface` 时应用：`color = surface` 时加 `tonalElevation = 6.dp`，底色会换成「更高表面层」的颜色，变深还是变浅取决于主题配置，而阴影（shadowElevation）不变；改回 `surfaceVariant` 后，同样的 `tonalElevation` 不再改变底色。所以动手题要先把 Surface 的 `color` 改成 `surface` 再加 `tonalElevation` 才能观察到变化（material3 1.4.0 行为）。
 
 ## 9. 本章总结
 

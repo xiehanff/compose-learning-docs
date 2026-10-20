@@ -9,7 +9,7 @@
 学完后，你应当能够：
 
 - 区分物理 px、Dp、sp 和设计稿坐标四种数字
-- 掌握 px = dp × density 与 px = sp × fontScale × density 两条换算公式
+- 掌握 px = dp × density 与 px = sp × fontScale × density 两条换算公式（sp 公式适用于线性字体缩放，见 4.2）
 - 由屏宽物理像素和 density 算出可用 dp 宽度
 - 理解 fontScale 与系统字体缩放（无障碍）的关系
 - 知道覆盖 LocalDensity 会影响整棵子树，且它不等于响应式设计
@@ -40,23 +40,22 @@ physicalPx = dpValue * density
 
 ### 3.1 独立示例：在运行时验证换算公式
 
-参与编译校验，不依赖原工程。显示的数值随设备变化，可以拿真机数字回代核对公式。
+参与编译校验，不依赖原工程。显示的数值随设备变化；dp 可回代线性公式，sp 应以当前 Density 的转换结果为准。
 
 <!-- compile -->
 ```kotlin
 val density = LocalDensity.current
-// 两条公式（Compose 单位换算的公开约定，见 4.2）：
-// px = dp × density；px = sp × fontScale × density
-// 注释按"纸面设备"推算：density = 2.75、fontScale = 1.3（本章与 43、44 章共用它）
+// dp 按 px = dp × density 换算；sp 经字体转换器换算（见 4.2）。
+// 注释按基线 ui-unit 1.11.3 的"纸面设备"推算：density = 2.75、fontScale = 1.3
 val widthPx = with(density) { 100.dp.toPx() } // 100 × 2.75 = 275.0
-val fontPx = with(density) { 16.sp.toPx() }   // 16 × 1.3 × 2.75 = 57.2
+val fontPx = with(density) { 16.sp.toPx() }   // 字体曲线将 16sp 转为 20.2dp，再 × 2.75 ≈ 55.55px
 val backDp = with(density) { 275f.toDp() }    // 275 / 2.75 = 100.0dp
 Text("100dp = $widthPx px；16sp = $fontPx px；275px = $backDp dp")
 ```
 
 首次出现的 Kotlin 语法：`with(对象) { ... }` 是 Kotlin 标准库的作用域函数。lambda 内部的 `this` 变成传入的对象，于是能直接调用它的成员；`toPx()` / `toDp()` 是 Density 接口上的成员扩展函数，必须处在 Density 环境里才能调用，`with(density)` 就是把当前环境借进来。
 
-预期观察：真机上 Text 显示的三个数值满足 4.2 的公式；具体数字随设备的 density、fontScale 变化。
+预期观察：dp 数值满足 px = dp × density；sp 数值由字体转换曲线与 density 共同决定。只有设备参数恰好等于注释中的假设时，才预期得到上述数字；不要用 sp × fontScale × density 强行校对运行结果（见 4.2）。
 
 ## 4. 逐步解释
 
@@ -68,7 +67,7 @@ Text("100dp = $widthPx px；16sp = $fontPx px；275px = $backDp dp")
 | --- | --- | --- |
 | px（物理像素） | 屏幕真实发光点，绘制阶段的最终单位 | — |
 | dp（Dp） | 密度无关的布局书写单位，随 density 缩放 | px = dp × density |
-| sp（TextUnit） | dp 基础上再乘用户字体倍率，文字专用（第 11 章） | px = sp × fontScale × density |
+| sp（TextUnit） | 随用户字体偏好缩放的文字单位（第 11 章） | 经当前 Density 的字体转换器转为 dp，再乘 density；线性模型才可写成 sp × fontScale × density（见 4.2） |
 | 设计稿坐标 | 设计文件里的原始数值（如 750 稿上的 32） | 本身没有单位语义，要先约定"按什么基准解释" |
 
 Density.density 是 dp 与 px 之间的换算倍率：density = 3 时，100.dp 约为 300px。density 的来源是系统报告值，约等于「设备 dpi ÷ 160」，例如 440dpi 的设备 density = 2.75。同一物理宽度下，density 越大，可用 dp 越少。
@@ -83,13 +82,15 @@ Density.density 是 dp 与 px 之间的换算倍率：density = 3 时，100.dp �
 | --- | --- | --- | --- |
 | 可用宽度（dp） | 物理宽 ÷ density | 1080 ÷ 2.75 | ≈ 392.7dp |
 | 100dp 的物理像素 | dp × density | 100 × 2.75 | 275px |
-| 16sp 的物理像素 | sp × fontScale × density | 16 × 1.3 × 2.75 | 57.2px |
+| 16sp 的物理像素（基线字体曲线） | sp 经字体曲线转 dp，再 × density | 20.2 × 2.75 | ≈ 55.55px |
 
-这两条公式对应 Density 接口 `Dp.toPx()` 与 `TextUnit.toPx()` 的公开换算行为（官方 API 参考见本章末尾），是 Compose 单位换算的公开约定，不是实现巧合。反向换算用 `toDp()` / `toSp()`（见 3.1 示例）。由第一行还能得到一个常用估算：可用 dp 宽 = 屏宽物理像素 ÷ density，纸面设备约 392.7dp——第 43 章算缩放系数时直接用到。
+运行时使用 Density 接口的 `Dp.toPx()` 与 `TextUnit.toPx()`，反向换算用 `toDp()` / `toSp()`（见 3.1 示例）。表中 sp 数字按本仓库基线 ui-unit 1.11.3 的转换表推导，是版本相关的算例；业务代码应调用转换函数，不要复制转换表。由第一行还能得到一个常用估算：可用 dp 宽 = 屏宽物理像素 ÷ density，纸面设备约 392.7dp——第 43 章算缩放系数时直接用到。
+
+一条重要的适用边界：px = sp × fontScale × density 只描述**线性字体缩放**模型。Compose 自 1.6 支持非线性字体缩放；本仓库基线的 Android 实现内置字体转换器，`fontScale >= 1.03` 时进入曲线转换路径，没有 Android 14 的系统版本限制，也不能凭「常规字号」认定为线性。例如本表的 16sp 就不等于线性模型算出的 57.2px。该阈值与转换表属于基线实现细节，升级依赖需复核；自定义 Density 也可能提供不同的转换实现，运行时应使用它的转换函数。第 44 章保留线性推导作教学对照；dp 公式不受字体曲线影响（官方发布说明与基线源码见本章末尾）。
 
 ### 4.3 fontScale：字体倍率是独立的一条轴
 
-fontScale 单独表示用户系统字体倍率，不能简单忽略。用户在系统设置里调大字体，fontScale 从 1.0 变成 1.3：16sp 的物理大小从 44px（16 × 2.75）涨到 57.2px，而所有 dp 布局完全不动。这正是 sp 的无障碍意义（第 11 章）。如果为了还原设计稿而在换算时除以 fontScale（第 44 章 `.pxSp()` 就是这种做法），文字大小就不再跟随用户设置——这是在尺寸一致性和无障碍字体放大之间做取舍，不等于完整支持无障碍。
+fontScale 单独表示用户系统字体偏好，不能简单忽略。纸面设备的 density 保持 2.75，fontScale 从 1.0 变成 1.3 时，基线下 16sp 的物理大小从 44px 涨到约 55.55px，而 dp 布局尺寸不变。这正是 sp 的无障碍意义（第 11 章），但放大比例不一定等于 fontScale。如果为了还原设计稿而在换算时除以 fontScale（第 44 章 `.pxSp()` 就是这种做法），线性模型下会抵消字体放大，非线性模型下还可能造成反向缩小；不能据此保证文字尺寸恒定或完整支持无障碍。
 
 ### 4.4 项目做法：把 density 本身换掉
 
@@ -147,7 +148,7 @@ val strokePx: Int = 2.dp.roundToPx()
 答案：
 
 1. scale = 1080 / 750 ≈ 1.44。
-2. 20dp = 20 × 3.0 = 60px；20sp = 20 × 1.2 × 3.0 = 72px。sp 比 dp 多乘一个 fontScale。
+2. 20dp = 20 × 3.0 = 60px。按基线字体曲线，fontScale 1.2 时 20sp 转为约 22.4dp，再 × 3.0 ≈ 67.2px；72px 只是线性模型的计算结果。运行时用 `with(density) { 20.sp.toPx() }` 取得转换值（4.2）。
 3. 100.px 返回的是 Dp，真正的物理像素换算发生在布局测量阶段，由当前 Density 决定（1.44 倍率下约 144px）。
 4. density 负责 dp 与 px 之间的换算倍率；fontScale 单独表示用户系统字体倍率，影响文字显示。
 5. 不对。覆盖 LocalDensity 只改单位换算比例；响应式要解决"空间变化后结构怎么变"，用约束、weight、WindowSizeClass 等布局手段（第 79 章），副作用另见第 43、45 章。
@@ -155,9 +156,12 @@ val strokePx: Int = 2.dp.roundToPx()
 
 ## 9. 本章总结
 
-Density 是单位换算环境：px = dp × density、px = sp × fontScale × density 是公开约定，可用 dp 宽 = 物理宽 ÷ density。fontScale 是独立的字体倍率轴，绕过它就是绕过无障碍。项目通过替换 Density 实现设计稿映射，但影响的是整个子树的所有 Dp；这是一种有明确代价的教学方案，不应取代生产项目的响应式布局和无障碍策略。
+Density 是单位换算环境：px = dp × density，可用 dp 宽 = 物理宽 ÷ density；sp 应调用当前 Density 的转换函数，sp × fontScale × density 只适用于线性模型。基线的非线性字体转换不限定 Android 14，也会影响常规字号。fontScale 表示用户字体偏好，手动除掉它可能破坏无障碍缩放。项目通过替换 Density 实现设计稿映射，但影响的是整个子树的所有 Dp；这是一种有明确代价的教学方案，不应取代生产项目的响应式布局和无障碍策略。
 
 官方参考：
 
 - [Density API 参考（toPx / toDp / toSp 的换算定义）](https://developer.android.com/reference/kotlin/androidx/compose/ui/unit/Density)
 - [androidx.compose.ui.platform 包参考（LocalDensity 所在包）](https://developer.android.com/reference/kotlin/androidx/compose/ui/platform/package-summary)
+- [Android 14 非线性字体缩放（非线性缩放下 sp 的换算方式）](https://developer.android.com/about/versions/14/features#non-linear-font-scaling)
+- [Compose 1.6 发布说明（支持非线性字体缩放）](https://android-developers.googleblog.com/2024/01/whats-new-in-jetpack-compose-january-24-release.html)
+- [ui-unit 1.11.3 官方源码包（FontScaling 与 FontScaleConverterFactory 转换实现）](https://dl.google.com/dl/android/maven2/androidx/compose/ui/ui-unit-android/1.11.3/ui-unit-android-1.11.3-sources.jar)

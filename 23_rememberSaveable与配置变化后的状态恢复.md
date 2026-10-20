@@ -60,7 +60,7 @@ fun SaveableCompareDemo() {
 
 1. 把两个计数分别点到 1 和 5，旋转屏幕：预期第一行归零、第二行仍是 5。
 2. 在开发者选项中开启「不保留活动」（Don't keep activities），把应用切到后台再回来：预期同样一行归零、一行保留；验证完关闭该选项。
-3. 按返回键退出应用再重新打开：预期两行都归零——用户主动结束的界面，系统不再走恢复流程。
+3. 关闭「不保留活动」，从最近任务中划掉应用的任务，再从图标打开：预期两行都归零。不要用返回键代替移除任务：**Android 12 及以上的根 launcher Activity 按返回默认只是把任务移到后台，通常并不结束 Activity**；立即重开且 Activity 未销毁时，两行计数都会保留。如果启用了「不保留活动」，或系统随后因资源压力销毁 Activity／杀掉进程，但任务及保存的实例状态仍在，则重建时预期普通 remember 归零、rememberSaveable 恢复；这与移除任务不同。
 
 ### 3.3 自定义 Saver：保存自己的数据类
 
@@ -111,7 +111,8 @@ fun FilterBar() {
 | 配置变化（旋转） | 旋转屏幕、系统深色模式切换、更改系统语言等 | 丢失 | 恢复 |
 | Activity 重建 | 开发者选项「不保留活动」、后台内存压力回收后返回 | 丢失 | 恢复（系统按保存的实例状态重建时） |
 | 进程死亡后重建 | 系统杀掉进程，用户从最近任务返回且任务仍被系统保留 | 丢失 | 恢复（同上，前提是系统保留并恢复该任务） |
-| 用户主动退出 | 按返回键结束、最近任务里划掉后再打开 | 丢失 | 丢失 |
+| 用户移除任务后重开 | 最近任务里划掉应用的任务，再从图标打开 | 丢失 | 丢失 |
+| 返回键退到后台（未回收） | Android 12+ 根 launcher Activity 按返回默认只把任务移到后台，立即重开 | 保留（Activity 未销毁） | 保留 |
 
 三点边界说明：
 
@@ -168,7 +169,7 @@ class DemoState extends State<Demo> with RestorationMixin {
 1. 普通 remember 在 Activity 重建后一定保留吗？
 2. 哪些类型适合直接 saveable？
 3. 订单等长期业务数据应只放 rememberSaveable 吗？
-4. 预测：SaveableCompareDemo 两个计数都点到 9，依次经历「旋转」「不保留活动下切后台再回来」「返回键退出再进入」，第二行（savedCount）分别显示多少？第一行呢？
+4. 预测：SaveableCompareDemo 两个计数都点到 9，依次经历「旋转」「不保留活动下切后台再回来」「关闭不保留活动，从最近任务划掉该任务再从图标打开」，第二行（savedCount）分别显示多少？第一行呢？
 5. 动手：给 Filter 增加一个 `sortAsc: Boolean` 字段：同步更新 data class、FilterSaver 的 save / restore 与 UI（提示：save 里追加一项，restore 里多取一个下标）。
 
 答案：
@@ -176,14 +177,15 @@ class DemoState extends State<Demo> with RestorationMixin {
 1. 不一定。普通 remember 能跨重组保留，但组合被销毁（旋转、Activity 重建、导航重建）后没有保证。
 2. Bundle 支持的类型：Boolean、String、Int 等基本类型，以及 Parcelable / Serializable 和它们的数组 / List / Map；自定义类需要 Saver，并只保存恢复 UI 所需的最小字段。
 3. 不应。rememberSaveable 不是数据库，订单等长期业务数据应放在持久层；ViewModel 的轻量恢复状态另有机制。
-4. 第二行依次是 9、9、0——前两次系统执行了保存恢复，用户主动退出后没有。第一行在第一次旋转时就归零，之后一直是 0。
+4. 第二行依次是 9、9、0——前两次系统执行了保存恢复，最近任务划掉后没有。第一行在第一次旋转时就归零，之后一直是 0。若把第三步换成 Android 12+ 根 launcher Activity 的默认返回行为，任务只是退到后台；Activity 未销毁时立即重开，两行都保持第三步之前的值，即 0 和 9。Activity／进程被系统销毁但保存状态仍在时，重建也预期得到 0 和 9，原因见 3.2。
 5. 要点：`save = { listOf(it.query, it.onlyFavorite, it.sortAsc) }`，`restore = { Filter(it[0] as String, it[1] as Boolean, it[2] as Boolean) }`；UI 加一个 Checkbox 读写 `filter.copy(sortAsc = it)`。漏改 Saver 时新字段在旋转后会回到默认值。
 
 ## 9. 本章总结
 
-rememberSaveable 用于恢复轻量 UI 状态，不是永久持久化，也不是大对象的仓库。四种场景的记忆口诀：**重组两者都在；旋转、Activity 重建、进程死亡看 rememberSaveable（前提是系统走了保存恢复）；用户主动退出谁也救不了**。项目里 `components/StateDemo.kt` 已用 `rememberSaveable` 与 `remember` 做对照，可直接旋转屏幕观察两者差异。
+rememberSaveable 用于恢复轻量 UI 状态，不是永久持久化，也不是大对象的仓库。记忆口诀：**重组两者都在；旋转、Activity 重建、系统进程回收后重建看 rememberSaveable（前提是系统走了保存恢复）；用户移除任务后重开，两者都丢失**。Android 12+ 根 launcher Activity 的默认返回行为是退到后台，不能当成移除任务。项目里 `components/StateDemo.kt` 已用 `rememberSaveable` 与 `remember` 做对照，可直接旋转屏幕观察两者差异。
 
 官方参考：
 
 - [Save UI state in Compose（保存与恢复，含 Bundle 限制提示）](https://developer.android.com/develop/ui/compose/state-saving)
 - [State and Jetpack Compose（rememberSaveable 与 Saver 入口）](https://developer.android.com/develop/ui/compose/state)
+- [Tasks and the back stack（Android 12+ 根 launcher Activity 的默认返回行为）](https://developer.android.com/guide/components/activities/tasks-and-back-stack#back-press-behavior)

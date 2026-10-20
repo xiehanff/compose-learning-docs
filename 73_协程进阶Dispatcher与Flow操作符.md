@@ -147,7 +147,7 @@ final json = await compute(parseJson, raw); // compute() 在后台 isolate 执�
 
 本质区别：Dart 的 Future API 与 Kotlin 的 coroutineScope / supervisorScope 不是同一套结构化并发模型，父子取消和失败传播不能直接一一对应；未等待 Future 的异常处理也取决于 Dart 代码和运行环境，不能简单概括为“静默”。Flutter 里页面销毁后的任务通常需要显式结合生命周期取消，Kotlin 则可以使用 viewModelScope / LaunchedEffect 等结构化作用域，但库调用和自定义任务仍需正确处理取消。
 
-Flow 操作符侧可以再对照一对：Kotlin 的 `flatMapLatest` 对应 Dart 的 `Stream.switchMap()`——新事件到来时都取消上一个内部流；不等价之处在于 Kotlin 的取消沿结构化并发的父子关系自动传播到 inner Flow 内部的每个挂起点，Dart 的取消靠 `StreamSubscription.cancel()`，`async*` 生成器通常要走到下一个 `yield` 才真正退出。
+Flow 操作符侧可以再对照一对：Kotlin 的 `flatMapLatest` 对应 Dart 侧 RxDart 的 `switchMap` 扩展（`SwitchMapExtension`，见 [RxDart 文档](https://pub.dev/documentation/rxdart/latest/rx/SwitchMapExtension.html)；注意它是第三方库扩展，需在 pubspec 引入 `rxdart` 依赖——Dart SDK 的 `Stream` 本身没有内建 switchMap，直接写会编译不过）——新事件到来时都取消上一个内部流；不等价之处在于 Kotlin 的取消沿结构化并发的父子关系自动传播到 inner Flow 内部的每个挂起点，Dart 的取消靠 `StreamSubscription.cancel()`，`async*` 生成器通常要走到下一个 `yield` 才真正退出。
 
 可以用“父子作用域”帮助理解 Kotlin 结构化并发，但不能据此保证异常不会遗漏；`launch`、`async` 和 supervisor 的异常处理责任不同。Dart 的 Future 链和 Zone 也有异常传播规则，两者都需要明确处理错误与取消。
 
@@ -174,7 +174,7 @@ Flow 操作符侧可以再对照一对：Kotlin 的 `flatMapLatest` 对应 Dart 
 2. coroutineScope 中任一子任务失败会取消全部子任务并把异常抛给外层；supervisorScope 中一个子任务失败不影响兄弟任务。按「失败要不要连坐」选择。
 3. flowOn 影响它之前的上游操作符的执行线程，之后的下游回到原上下文；放错位置会导致重活在错误线程执行，或想切 collect 线程却无效。
 4. cancel() 请求取消，代码需调用支持取消的挂起函数，或主动检查 isActive / ensureActive() 才能及时响应。suspend 标记本身不保证检查取消；没有挂起点也不检查取消的长循环可能继续运行。
-5. 搜索请求是异步且耗时的，map 只能做同步转换，表达不了「新输入作废未完成的旧请求」；flatMapLatest 在上游发出新值时取消对上一个 inner Flow 的收集、改为收集新的，正好匹配「新查询接管、旧查询作废」。使用它需要 @OptIn(ExperimentalCoroutinesApi::class)。
+5. 差别不在「能不能异步」：`map` 的转换函数本身就是 suspend 函数，同样可以执行挂起的网络请求（官方签名见 [map](https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-core/kotlinx.coroutines.flow/map.html)）。差别在取消语义与返回值形态：`map` 把每个值转换成一个结果，新值到来不会取消上一个还在进行的转换；`flatMapLatest` 把每个值映射成一个新的 Flow，并在上游发出新值时取消对上一个 inner Flow 的收集、改为收集新的——「新输入作废未完成的旧请求」只有这种取消-重建语义才表达得出，这正是搜索场景需要它的原因。使用它需要 @OptIn(ExperimentalCoroutinesApi::class)。
 
 官方参考：[Coroutine context and dispatchers](https://kotlinlang.org/docs/coroutine-context-and-dispatchers.html)、[Cancellation and timeouts](https://kotlinlang.org/docs/cancellation-and-timeouts.html)、[Asynchronous Flow](https://kotlinlang.org/docs/flow.html)。
 

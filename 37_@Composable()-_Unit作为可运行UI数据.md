@@ -73,14 +73,17 @@ private fun CounterContent() {
 
 @Composable
 fun DeferredCallDemoScreen() {
-    // 传法一：尾随 lambda——最后一个函数类型参数直接写在大括号里（第 5 章）
-    DemoCard(title = "计数器") {
-        CounterContent() // 注意：此刻不执行，只是把「调用 CounterContent」这段代码打包传入
-    }
+    // Column 把两张卡片纵向排开：不套容器的话两个根级 DemoCard 会叠放在左上角
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        // 传法一：尾随 lambda——最后一个函数类型参数直接写在大括号里（第 5 章）
+        DemoCard(title = "计数器") {
+            CounterContent() // 注意：此刻不执行，只是把「调用 CounterContent」这段代码打包传入
+        }
 
-    // 传法二：先存成值再传——函数值是一等公民，能赋值给 val、能当普通参数传
-    val greeting: @Composable () -> Unit = { Text("你好，Compose") }
-    DemoCard(title = "问候语", content = greeting)
+        // 传法二：先存成值再传——函数值是一等公民，能赋值给 val、能当普通参数传
+        val greeting: @Composable () -> Unit = { Text("你好，Compose") }
+        DemoCard(title = "问候语", content = greeting)
+    }
 }
 ```
 

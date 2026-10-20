@@ -81,7 +81,7 @@ class Tracker(
 
 **collectAsStateWithLifecycle 的定位。** 它是基于生命周期感知机制、把 Flow 转为 Compose `State` 的高层封装，常见默认行为以 `STARTED` 作为最低活跃状态，并使用 `LocalLifecycleOwner`。可以把它与 `repeatOnLifecycle` 联系起来理解，但不要把二者当作完全等价的替换：前者还负责 State 的产生、初始值和组合生命周期集成。组合里收集 UI 状态通常优先用它；一次性事件、导航事件或需要自定义收集策略的 Flow 仍需单独设计。使用前需引入 `lifecycle-runtime-compose`。
 
-**flowWithLifecycle 在哪一层。** 同一族的 `flowWithLifecycle` 是 Flow 操作符：它把「低于活跃状态就挂起收集」包进流本身，返回一个新 Flow，收集它就自动获得生命周期感知；`repeatOnLifecycle` 管的是任意协程块的启停；`collectAsStateWithLifecycle` 再在其上把 Flow 变成 Compose State。三者层次不同、可组合但职责不重叠：管协程块用 repeatOnLifecycle，想让一条流本身生命周期感知用 flowWithLifecycle，组合里收 UI 状态用 collectAsStateWithLifecycle。版本边界：`collectAsStateWithLifecycle` 与 `flowWithLifecycle` 自 lifecycle-runtime-compose 2.6.0 起提供，`LifecycleEventEffect` 系列自 2.7.0 起提供（见章末 Lifecycle 发布说明）；本仓库 snippets 校验工程未纳入 lifecycle-runtime-compose，本章示例不参与编译校验。
+**flowWithLifecycle 在哪一层。** 同一族的 `flowWithLifecycle` 是 Flow 操作符：它把「低于活跃状态就**取消**上游收集、再次活跃时**重新**收集」包进流本身，返回一个新 Flow，收集它就自动获得生命周期感知。注意这不是「冻结等待」：恢复时是重新执行上游，冷流里的请求等副作用可能重跑。`repeatOnLifecycle` 管的是任意协程块的启停；`collectAsStateWithLifecycle` 再在其上把 Flow 变成 Compose State。三者层次不同、可组合但职责不重叠：管协程块用 repeatOnLifecycle，想让一条流本身生命周期感知用 flowWithLifecycle，组合里收 UI 状态用 collectAsStateWithLifecycle。版本边界：`flowWithLifecycle` 自 lifecycle-runtime-ktx 2.4.0 起提供，`collectAsStateWithLifecycle` 自 lifecycle-runtime-compose 2.6.0 起提供，`LifecycleEventEffect` 系列自 2.7.0 起提供（见章末 Lifecycle 发布说明）；本仓库 snippets 校验工程未纳入 lifecycle-runtime-compose，本章示例不参与编译校验。
 
 **LifecycleEventEffect 与事件型副作用。** 有些逻辑不是「持续收集」而是「每次发生某事件时执行一次」：统计上报、埋点、启动动画、恢复轮询。LifecycleEventEffect(ON_RESUME) 在每次到达该事件时执行块，对应的还有 LifecycleStartEffect 等。它与 repeatOnLifecycle 的区别：repeatOnLifecycle 管「持续块」的启停，LifecycleEventEffect 管「事件触发的一次性动作」。记住：持续收集用 repeatOnLifecycle，单次动作用 LifecycleEventEffect。
 
@@ -149,10 +149,10 @@ class LifecycleAwareState extends State<AppLifecycleDemo>
 答案：
 
 1. 生命周期升到 STARTED 时启动，降到 STARTED 之下（如退后台）时取消；再次升上来重新启动，直到生命周期永久销毁。
-2. 它是生命周期感知地收集 Flow 并转换为 Compose State 的高层封装，常见默认状态是 STARTED。它与 repeatOnLifecycle 有相同的“低于活跃状态暂停收集”的目标，但还包含初始值、State 生成和组合生命周期集成，不能简单视为手写 repeatOnLifecycle 的完全等价实现。
+2. 它是生命周期感知地收集 Flow 并转换为 Compose State 的高层封装，常见默认状态是 STARTED。它与 repeatOnLifecycle 有相同的“低于活跃状态取消收集、恢复时重新收集”的目标，但还包含初始值、State 生成和组合生命周期集成，不能简单视为手写 repeatOnLifecycle 的完全等价实现。
 3. 适合「每次事件发生执行一次」的动作，如进入前台埋点上报、恢复轮询；repeatOnLifecycle 管理持续协程块的启停，LifecycleEventEffect 管理事件触发的一次性动作。
 
-官方参考：[Lifecycle-aware coroutines](https://developer.android.com/topic/libraries/architecture/coroutines)、[State and Jetpack Compose](https://developer.android.com/develop/ui/compose/state)、[Lifecycle 发布说明](https://developer.android.com/jetpack/androidx/releases/lifecycle)。第一条说明 `repeatOnLifecycle`，第二条说明生命周期感知的状态收集，第三条用于核对 `collectAsStateWithLifecycle`（2.6.0）与 `LifecycleEventEffect`（2.7.0）等 API 的版本边界。
+官方参考：[Lifecycle-aware coroutines](https://developer.android.com/topic/libraries/architecture/coroutines)、[State and Jetpack Compose](https://developer.android.com/develop/ui/compose/state)、[Lifecycle 发布说明](https://developer.android.com/jetpack/androidx/releases/lifecycle)。第一条说明 `repeatOnLifecycle`，第二条说明生命周期感知的状态收集，第三条用于核对 `flowWithLifecycle`（2.4.0，lifecycle-runtime-ktx）、`collectAsStateWithLifecycle`（2.6.0）与 `LifecycleEventEffect`（2.7.0）等 API 的版本边界。
 
 ## 9. 本章总结
 

@@ -145,7 +145,7 @@ iOS 对应 UiKitView。两个框架连名字都一样，这是历史上少有的
 
 - 只在 factory 里设置数据，忘记写 update → 状态变化后 View 显示陈旧
 - 忘记 onRelease → 监听器/Handler 持有 Activity 引用，组合销毁后仍泄漏
-- 在宿主里反复调用 ComposeView 的 setContent 重建组合：每次调用都会销毁旧组合再新建，动态内容应写进 setContent 的 lambda 里随状态变化，而不是在外层反复重建
+- 在宿主里反复调用 ComposeView 的 setContent 想更新内容：再次调用只是更新内部保存的内容状态并触发重组、按结构差异增删子树，组合本身继续复用（销毁组合由 ViewCompositionStrategy 决定，不是 setContent 的职责）；动态内容应写进 setContent 的 lambda 里随状态变化，而不是依赖外层反复调用 setContent（作者建议/最佳实践）
 - 在 View 层与 Compose 层之间直接共享可变状态（把 MutableState 直接塞给 View 用）→ 两边状态不一致、无法观察
 - 忘记给 AndroidView 设置尺寸约束，或父容器拦截触摸导致 View 收不到点击
 

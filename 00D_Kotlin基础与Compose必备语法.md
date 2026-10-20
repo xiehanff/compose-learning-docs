@@ -204,7 +204,7 @@ class Counter {
 }
 ```
 
-data class 适合不可变数据。「data」会让编译器自动生成 `equals`、`hashCode`、`toString`、`copy` 等成员，省去手写比较和复制逻辑。后续章节的数据载体（如第 36 章的 `ComponentInfo`）用的就是它：
+data class 适合不可变数据。「data」会让编译器自动生成 `equals`、`hashCode`、`toString`、`copy` 等成员，省去手写比较和复制逻辑。第 36 章的通用教学模型 `DemoEntry` 用的就是它（注意：该章原工程的 `ComponentInfo` 是普通 class，第 36 章有两者取舍的对比）：
 
 ```kotlin
 data class User(

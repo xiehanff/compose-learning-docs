@@ -61,8 +61,8 @@
 | `Ch16_01.kt` | Ch16 | `16_LazyColumn、item、items与itemsIndexed.md:47` | decls | `// 最小数据模型：id 是每条数据的稳定身份（第 17 章用它作 key），title 是展示文本` |
 | `Ch16_02.kt` | Ch16 | `16_LazyColumn、item、items与itemsIndexed.md:115` | body | `LazyColumn {` |
 | `Ch17_01.kt` | Ch17 | `17_key与列表项身份.md:43` | decls | `// 待办模型：id 是业务身份（稳定且不重复）；title 只是展示文本，可能重复、可能修改` |
-| `Ch17_02.kt` | Ch17 | `17_key与列表项身份.md:166` | body | `// 用索引作 key：身份仍然是位置，效果与无 key 基本相同` |
-| `Ch17_03.kt` | Ch17 | `17_key与列表项身份.md:185` | body | `// 想让勾选状态在条目滚出很远、再滚回来时也保留：rememberSaveable + key` |
+| `Ch17_02.kt` | Ch17 | `17_key与列表项身份.md:172` | body | `// 用索引作 key：身份仍然是位置，效果与无 key 基本相同` |
+| `Ch17_03.kt` | Ch17 | `17_key与列表项身份.md:191` | body | `// 想让勾选状态在条目滚出很远、再滚回来时也保留：rememberSaveable + key` |
 | `Ch18_01.kt` | Ch18 | `18_LazyVerticalGrid与GridCells.md:28` | body | `LazyVerticalGrid(` |
 | `Ch18_02.kt` | Ch18 | `18_LazyVerticalGrid与GridCells.md:46` | decls | `// 固定 3 列：无论多宽，列数不变，每列随宽度伸缩` |
 | `Ch18_03.kt` | Ch18 | `18_LazyVerticalGrid与GridCells.md:72` | decls | `// 自适应：每列不小于 100dp，宽度够就多放列` |
@@ -117,7 +117,7 @@
 | `Ch36_01.kt` | Ch36 | `36_ComponentInfo类及其四个字段.md:49` | decls | `// ---------- 数据模型：与项目 ComponentInfo 同构，改名为 DemoEntry 以表明这是本章自建示例 ----------` |
 | `Ch36_02.kt` | Ch36 | `36_ComponentInfo类及其四个字段.md:165` | decls | `// 用最小两字段模型演示 data class 的自动成员；DemoEntry 同理` |
 | `Ch37_01.kt` | Ch37 | `37_@Composable()-_Unit作为可运行UI数据.md:54` | decls | `// 通用外壳：最后一个参数是 @Composable 函数类型——调用方把「一段 UI 代码」传进来` |
-| `Ch37_02.kt` | Ch37 | `37_@Composable()-_Unit作为可运行UI数据.md:98` | decls | `@Composable` |
+| `Ch37_02.kt` | Ch37 | `37_@Composable()-_Unit作为可运行UI数据.md:101` | decls | `@Composable` |
 | `Ch38_01.kt` | Ch38 | `38_KotlinobjectComponentRegistry.md:49` | decls | `// 最小数据模型：与第 36 章独立示例同构` |
 | `Ch39_01.kt` | Ch39 | `39_List、firstOrNull与可空返回值.md:53` | decls | `// 最小模型：三个只读字段，够演示查询即可` |
 | `Ch40_01.kt` | Ch40 | `40_添加一个新Demo的完整步骤.md:66` | decls | `// ---------- 步骤 2：数据模型与注册表（DemoEntry 与第 36 章独立示例同构） ----------` |

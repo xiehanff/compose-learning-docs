@@ -68,7 +68,7 @@ Layout(content = { Child() }) { measurables, constraints ->
 
 ## 4. 逐步解释
 
-`Constraints` 是布局阶段父级传给子级的「允许范围」，四要素：`minWidth`、`maxWidth`、`minHeight`、`maxHeight`。布局协议要求子项最终声明的尺寸落在这个范围内——内置组件都会遵守（内部用 constrain 系列自行夹取）；自定义布局返回越界尺寸不会被自动纠正，只会让上层得到不可预期的布局结果，所以要自觉用 `constrainWidth`/`constrainHeight` 夹取。
+`Constraints` 是布局阶段父级传给子级的「允许范围」，四要素：`minWidth`、`maxWidth`、`minHeight`、`maxHeight`。布局协议要求子项最终声明的尺寸落在这个范围内——内置组件都会遵守（内部用 constrain 系列自行夹取）。自定义布局在 `layout()` 里返回越界尺寸时，框架存在夹取适配：父级观察到的 `Placeable.width` / `height` 会被自动夹取到传入约束的 min/max 区间内，子项真实测得的尺寸保留在 `Placeable.measuredWidth` / `measuredHeight`（可能不满足约束）；摆放超出约束的 placeable 时还有默认的居中偏移处理。但别把这层兜底当「没出问题」：父级看到的尺寸与内容真实尺寸不一致，内容可能画出边界，依赖越界行为的布局脆弱、结果不可预期。所以要自觉用 `constrainWidth`/`constrainHeight` 夹取，按约束正确测量。
 
 常用构造：`Constraints.fixed(width, height)`（min == max，即「必须这么大」）；`Constraints(minWidth, maxWidth, minHeight, maxHeight)` 顶层工厂直接构造（要求 min ≤ max，违反会抛异常）；想放松成「可以更小」就 `copy(minWidth = 0, minHeight = 0)`。`Constraints.Infinity` 是常量 `Int.MAX_VALUE`，`maxWidth == Constraints.Infinity` 表示宽度无界（可滚动容器给子项的典型约束）。注意父级给子级无限约束时，子项若自身内容有限一般没问题，但子项向孙子传递时要注意别把 Infinity 直接当具体值参与计算。
 

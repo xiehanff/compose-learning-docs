@@ -102,7 +102,13 @@ fun TodoKeyDemoScreen() {
     Column(Modifier.fillMaxSize()) {
         Row {
             Button(
-                onClick = { todos = listOf(Todo(nextId, "新任务 $nextId")) + todos }, // 头部插入
+                onClick = {
+                    // 头部插入：先拼接新列表，再递增 nextId。
+                    // nextId 只增不减，保证每次插入的 id 都不与现存条目重复——
+                    // 重复 id 会触发「重复 key」异常，列表无法渲染（第 75 章会再提醒）
+                    todos = listOf(Todo(nextId, "新任务 $nextId")) + todos
+                    nextId++
+                },
                 modifier = Modifier.padding(4.dp),
             ) { Text("头部插入") }
             Button(

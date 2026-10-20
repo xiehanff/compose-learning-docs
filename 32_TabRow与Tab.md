@@ -110,7 +110,7 @@ fun TabPagerDemo() {
 
 操作步骤：先点「热点」标签；等页面停稳后，再用手指在内容区横向拖动到一半松手。
 
-期望观察：点标签时内容区带动画滚到第三页，指示器随之滑到「热点」下方；手势拖动过程中指示器就实时跟手移动，松手吸附到最近的标签后停稳。
+期望观察：点标签时内容区带动画滚到第三页，指示器随之滑到「热点」下方；手势拖动过程中指示器不保证按比例跟手——`selectedTabIndex` 读的是整数页索引 `currentPage`，拖过页面中点才翻到相邻页，默认指示器随后以内置动画滑到新标签下方，松手吸附到最近的标签后停稳。要随拖拽比例连续移动，需基于 `pagerState.currentPageOffsetFraction` 自定义指示器（见 4 节）。
 
 ## 4. 逐步解释
 
@@ -124,7 +124,7 @@ fun TabPagerDemo() {
 
 **Pager 的版本边界与来路。** 在本仓库基线（Compose BOM 2026.06.00，见 `snippets/gradle/libs.versions.toml`）中，`HorizontalPager` / `rememberPagerState` 已是稳定 API，不需要 `@OptIn(ExperimentalFoundationApi::class)`——官方 Compose Foundation 1.7.0（2024 年 9 月）起 Pager 系列转为稳定；更早版本的 foundation 里它们是实验 API，老教程代码里的 `@OptIn` 注解是版本痕迹。还有更老的教程用 Accompanist 的 `HorizontalPager`（`com.google.accompanist.pager`）：Accompanist 的定位就是「把 API 上游化进官方工具包后即废弃」（其仓库 README 原话），Pager 模块已随之废弃移除，新代码一律直接用 `androidx.compose.foundation.pager`。另外注意 `rememberPagerState` 的 `pageCount` 是 lambda（`() -> Int`），早期「直接传 Int」的重载已废弃。
 
-**标签与 Pager 怎么同步：单一真相写法。** 3.3 的例子没有第二份 `selected` 状态：`selectedTabIndex`、每个 `Tab` 的 `selected`、内容页全部从 `pagerState` 派生。点击标签（事件）→ `animateScrollToPage` 滚动 → `currentPage` 变化（状态）→ 标签栏与指示器重组跟随（重组 → 界面）；手势滑动走的是同一条链，只是入口换成手势。没有第二条状态，自然没有「双向同步形成循环」的问题。另一种写法是自己维护 `selected`，再用 `LaunchedEffect`（第 25 章）观察 `pagerState` 把当前页写回——也能工作，但要小心点击与回写互相触发，初学阶段推荐单一真相。绑定 `currentPage` 还是 `settledPage` 有个细微差别（官方 KDoc）：`currentPage` 是「最接近吸附位置的页」，手势或动画滚动过程中就会更新，指示器跟手；`settledPage` 只在滚动停稳后更新，想要「拖一半标签不变、停稳才切换」就用它。
+**标签与 Pager 怎么同步：单一真相写法。** 3.3 的例子没有第二份 `selected` 状态：`selectedTabIndex`、每个 `Tab` 的 `selected`、内容页全部从 `pagerState` 派生。点击标签（事件）→ `animateScrollToPage` 滚动 → `currentPage` 变化（状态）→ 标签栏与指示器重组跟随（重组 → 界面）；手势滑动走的是同一条链，只是入口换成手势。没有第二条状态，自然没有「双向同步形成循环」的问题。另一种写法是自己维护 `selected`，再用 `LaunchedEffect`（第 25 章）观察 `pagerState` 把当前页写回——也能工作，但要小心点击与回写互相触发，初学阶段推荐单一真相。绑定 `currentPage` 还是 `settledPage` 有个细微差别（官方 KDoc）：`currentPage` 是「最接近吸附位置的页」，手势或动画滚动过程中（跨过页面中点时）就会更新——选中标签随之切换，但这是**整数页粒度**：默认指示器按整数索引用内置动画滑到新标签下方，不随拖拽比例连续移动，要连续跟手需基于 `pagerState.currentPageOffsetFraction` 自定义指示器；`settledPage` 只在滚动停稳后更新，想要「拖一半标签不变、停稳才切换」就用它。
 
 **TabRow 系与 NavigationBar 怎么选。** 两组组件都是「一排可选项 + 选中指示」，差异在 Material 3 给它们的定位：
 
@@ -216,7 +216,7 @@ LaunchedEffect(pagerState.currentPage) {      // 滚动 → 回写：两条链�
 3. 标签栏负责标签排列与选中指示器（不含内容、不管滑动）；`HorizontalPager` 负责可滑动的页面内容，两者通过同一个选中状态同步。
 4. 项目是简单 Demo，标签栏不包含内容区，所以用 `when (selected)` 选择一个内容分支，不需要引入滑动容器。
 5. `TabBar`（及 `TabBar.secondary`）对应 `PrimaryTabRow` / `SecondaryTabRow`，`TabBarView` 对应 `HorizontalPager`，并与标签栏的选中状态同步（`pagerState.currentPage` 与 Tab 点击双向对齐，选一个作为主要真相）。
-6. currentPage 在手势与吸附动画过程中就持续更新，所以指示器从拖动起就实时跟手，吸附途中已在第二格；换成 settledPage 后，滚动全程指示器停在原处，直到页面完全停稳才一次性跳到第二格（两者语义区别见 4 节引用的官方 KDoc）。
+6. 拖过两页中点时 `currentPage` 就翻到 1，选中标签立刻切到「推荐」，默认指示器随后以内置动画滑到第二格——整数页粒度，不按拖拽比例连续移动；换成 settledPage 后，滚动全程指示器停在原处，直到页面完全停稳才一次性滑到第二格（两者语义区别见 4 节引用的官方 KDoc）。
 7. titles 加到四项后，pageCount lambda 返回 4，标签栏四个标签、可滑四页、内容一一对应——这正是 pageCount 用 lambda 的好处，页数跟随数据。固定写 3 时 Pager 只认三页：第四个标签仍显示、点击也会尝试滚动到第 3 页，但页面滑不过去或行为不完整，页数与标签数不一致从来不是受支持的状态。
 
 ## 9. 本章总结

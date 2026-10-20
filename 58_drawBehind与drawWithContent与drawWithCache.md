@@ -104,7 +104,7 @@ fun GradientPanel() {
 1. 组合阶段：`CircularProgressRing(0.6f)` 进入组合，modifier 链完成测量，尺寸定为 120dp。
 2. 绘制阶段：系统按链顺序触发绘制。`drawBehind` 先执行，画灰色 360 度底环。
 3. `drawWithContent` 执行：先调 `drawContent()` 绘制内部 `Text`，再按 `sweepAngle = 216f` 画进度弧。
-4. `progress` 从 0.6f 变为 0.75f 时（比如网络加载推进），读取了 `progress` 的 `drawWithContent` 重新执行，进度弧与 `drawContent()` 画出的内容一起重绘；`drawBehind` 的 lambda 没有读取 `progress`，不会因它变化而重新执行。
+4. `progress` 从 0.6f 变为 0.75f 时（比如网络加载推进），触发绘制失效的是**读取了 `progress` 的那一层**（`drawWithContent`）。但要区分「谁触发失效」和「这一轮哪些回调执行」：两个绘制修饰挂在同一节点的同一条绘制链上，重绘会重新遍历整条链——`drawBehind` 的底环回调也会再次执行，只是画出的结果和上一帧相同。绘制 modifier 的省法不在「让别的回调不执行」，而在 `drawWithCache`：昂贵对象的创建只在尺寸等绘制环境变化或构建块读取的 State 变化时发生，重绘帧直接复用缓存对象（见第 4 节第 4 条）。
 5. `GradientPanel` 的构建块没有读取可变 State，因此首次绘制或尺寸等绘制环境变化时创建 `verticalGradient`，其他帧复用 Brush；如果构建块读取的 State 变化，缓存也会失效并重建。
 
 ## 6. Flutter / Dart 3 对照

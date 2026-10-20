@@ -47,7 +47,7 @@ if (showDialog) {
 
 ### 扩展示例：异步删除 + 关闭边界控制
 
-项目片段点了「确定」立刻关弹窗，真实业务里删除是网络请求：请求期间不能重复点、不能取消，成功后才关闭。初始界面：一个「删除文章」按钮。操作：点它弹出确认框 → 点「删除」。期望观察：确认按钮变成「删除中…」且两个按钮都变灰，约 1.5 秒后弹窗消失；点弹窗外部没有反应（`dismissOnClickOutside = false`），按返回键弹窗会关闭但没有删除（返回键默认仍可关，走的是 `onDismissRequest`）。
+项目片段点了「确定」立刻关弹窗，真实业务里删除是网络请求：请求期间不能重复点、不能取消，成功后才关闭。初始界面：一个「删除文章」按钮。操作：点它弹出确认框 → 点「删除」。期望观察：确认按钮变成「删除中…」且两个按钮都变灰，约 1.5 秒后弹窗消失；点弹窗外部没有反应（`dismissOnClickOutside = false`）。请求进行中按返回键也不会关闭弹窗（`onDismissRequest` 里同样判断了 `deleting`）——因为删除协程跑在页面级作用域里，弹窗移除不会取消它，放行就会出现「弹窗已关、删除仍完成」。未在请求中按返回键或点「取消」则只是关闭弹窗，不发起删除。
 
 <!-- compile -->
 ```kotlin
@@ -59,7 +59,10 @@ val scope = rememberCoroutineScope()
 
 if (showDialog) {
     AlertDialog(
-        onDismissRequest = { showDialog = false }, // 点遮罩/返回键都到这里：是「取消」，不是「确认删除」
+        // 点遮罩/返回键都到这里：是「取消」，不是「确认删除」。
+        // 请求进行中必须挡住返回键：scope 是页面级协程作用域，弹窗被移除并不会取消它，
+        // 若此时关掉弹窗，会出现「弹窗已关、删除仍在后台完成」——与「取消」的承诺相反
+        onDismissRequest = { if (!deleting) showDialog = false },
         properties = DialogProperties(
             dismissOnClickOutside = false, // 点外部不关，防误触（返回键默认仍可关）
         ),
@@ -114,7 +117,7 @@ confirmButton 和 dismissButton 是 Composable 槽位，可以放 TextButton 或
 4. 对应回调修改状态
 5. 重组后弹窗移除
 6. 异步确认链路：点「删除」→ 回调先查 `deleting` 标志 → 置 `true` 并启动协程 → 读取该状态的按钮重组为禁用与「删除中…」→ 请求成功 → `showDialog = false` → 弹窗离开组合
-7. 点外部：`DialogProperties` 拦下这次点击，`onDismissRequest` 不触发；按返回键：`onDismissRequest` 触发，弹窗关闭但没有任何删除发生
+7. 点外部：`DialogProperties` 拦下这次点击，`onDismissRequest` 不触发；按返回键：`onDismissRequest` 触发——请求未进行时关闭弹窗且不发起删除；请求进行中被 `if (!deleting)` 挡住，弹窗保持打开直到请求完成。另注意：即使用户真的中途取消了一个可取消的请求，也只是客户端停止等待，不等于服务端撤销了已发出的操作——「取消」的语义要在业务层自己定义
 
 ## 6. Flutter / Dart 3 对照
 
