@@ -22,6 +22,8 @@
 
 场景：网络接口依赖注入到 ViewModel，Compose 里直接取用：
 
+下面的代码聚焦 Hilt 的装配关系，不是完整可运行工程：Retrofit/Gson 的 Gradle 依赖、Hilt 插件与 KSP/KAPT 处理器配置需要按预备篇 B 和本仓库版本基线另行加入；首次阅读可先看注入链路，不必先复制网络配置。
+
 ```kotlin
 // App.kt —— Application 必须加 @HiltAndroidApp
 @HiltAndroidApp
@@ -166,3 +168,5 @@ Riverpod 的 ProviderContainer 也承担类似职责（依赖 + 作用域 + 生�
 ## 9. 本章总结
 
 Hilt 把「谁依赖谁、谁造谁」集中到编译期声明的依赖图里。常用配置是 @HiltAndroidApp、@AndroidEntryPoint、@HiltViewModel + @Inject constructor 这一组入口注解，依赖的提供与绑定交给 @Module + @Provides/@Binds，再用作用域注解控制实例存活时长。
+
+官方参考：[Dependency injection with Hilt](https://developer.android.com/training/dependency-injection/hilt-android)。

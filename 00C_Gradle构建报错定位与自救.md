@@ -233,6 +233,8 @@ Unknown host
 
 ## 11. 场景五：KSP、KAPT、Hilt 或 Room 生成代码失败
 
+这是给已使用注解处理或代码生成项目的排错索引。若你还没接触 Hilt、Room 或 KSP/KAPT，可以先跳过本节；不影响完成预备篇和基础 Compose 练习。
+
 常见表现：
 
 - 找不到 `*_Impl`、`Hilt_*`、`Dagger*` 等生成类型；

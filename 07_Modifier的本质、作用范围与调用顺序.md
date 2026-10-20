@@ -27,19 +27,19 @@
 Text(
     text = "点我",
     modifier = Modifier
-        .padding(16.px)               // 四周留出 16px（本项目设计稿单位）
+        .padding(16.dp)               // 四周留出 16dp
         .background(Color.LightGray)  // 给这块区域铺底色
         .clickable { /* 点击处理 */ }, // 让这块区域响应点击
 )
 ```
 
-下面是把项目 `components/ModifierDemo.kt` 里的对照组简化后的写法。三个修饰符都可以按字面理解：`padding` 在组件外侧留出空白，`background` 给这块区域铺底色，`clickable` 让这块区域响应点击（第 5 章已经用过它）。这里的 `.px` 是**本项目的设计稿单位**（`1.px` 等于设计稿 1px，伴随项目全局使用，原理在第 43、44 章讲）；`padding` 与 `background` 的完整参数在第 13、15 章讲，本章只关心它们的先后顺序。
+为聚焦 Modifier，本例改用 Compose 标准单位 `dp`；原项目源码用的是自定义 `.px` 设计稿单位，空工程不能直接使用它，缩放原理在第 43、44 章讲。三个修饰符都可以按字面理解：`padding` 在组件外侧留出空白，`background` 给这块区域铺底色，`clickable` 让这块区域响应点击（第 5 章已经用过它）。`padding` 与 `background` 的完整参数在第 13、15 章讲，本章只关心它们的先后顺序。
 
 ## 4. 逐步解释
 
-`Modifier` 是一个不可变描述链。`Modifier.padding(16.px)` 不会修改一个全局对象，而是返回包含“四周留出 16px 空白”节点的新 Modifier；接着 `.background(...)` 再追加“铺底色”节点；`.clickable { }` 再追加“响应点击”节点。最终整条链交给 `Text`。
+`Modifier` 是一个不可变描述链。`Modifier.padding(16.dp)` 不会修改一个全局对象，而是返回包含“四周留出 16dp 空白”节点的新 Modifier；接着 `.background(...)` 再追加“铺底色”节点；`.clickable { }` 再追加“响应点击”节点。最终整条链交给 `Text`。
 
-顺序很重要。例如 `.padding(16.px).background(Color.Red)` 表示先在外侧产生 padding，再给 padding 后的内部范围画背景；反过来 `.background(...).padding(...)` 会先给较大的原始范围画背景，再把内容向内推。Modifier 也不会自动传给子组件。给父组件设置 background，只画父组件自身背景，不代表每个子组件都获得 background。
+顺序很重要。例如 `.padding(16.dp).background(Color.Red)` 表示先在外侧产生 padding，再给 padding 后的内部范围画背景；反过来 `.background(...).padding(16.dp)` 会先给较大的原始范围画背景，再把内容向内推。Modifier 也不会自动传给子组件。给父组件设置 background，只画父组件自身背景，不代表每个子组件都获得 background。
 
 顺序同样影响裁剪：`.clip(...)` 给链上加一个「把内容裁成指定形状」的节点（形状的写法和完整用法在第 15 章详解）。写在 `background` 之前时，底色会被限制在裁剪后的形状内；写在 `background` 之后时，底色先按原始范围铺满、再被裁掉——两种写法的可见范围不同。
 
@@ -75,17 +75,17 @@ GestureDetector(
 
 ## 8. 本章检查题
 
-1. 解释 `.padding(16.px).background(...)` 与 `.background(...).padding(16.px)` 可能有什么差异
+1. 解释 `.padding(16.dp).background(...)` 与 `.background(...).padding(16.dp)` 可能有什么差异
 2. 为什么在父组件上写的 Modifier 不会自动作用到它的子组件？
-3. 链条写成 `.padding(16.px).clickable { }` 时，可点击的是哪一块区域？反过来写呢？
+3. 链条写成 `.padding(16.dp).clickable { }` 时，可点击的是哪一块区域？反过来写呢？
 4. 为什么 `Modifier.weight` 不能随处调用？
 5. 链条写成 `.clip(...).background(...)` 与 `.background(...).clip(...)` 时，可见范围分别是什么？
 
 答案：
 
-1. `.padding(16.px).background(...)` 先留出空白再铺底色，底色只覆盖留白之后的内容区域；`.background(...).padding(16.px)` 先给原始范围铺底色，再把内容向内推，底色覆盖的范围更大。
+1. `.padding(16.dp).background(...)` 先留出空白再铺底色，底色只覆盖留白之后的内容区域；`.background(...).padding(16.dp)` 先给原始范围铺底色，再把内容向内推，底色覆盖的范围更大。
 2. Modifier 只作用于接收它的那个节点。给父组件设置 background，画出的只是父组件自己的背景；子组件要各自设置自己的背景。
-3. `.padding(16.px).clickable { }` 中 clickable 在 padding 内侧，只有留白以内的内容区域可点；写成 `.clickable { }.padding(16.px)` 时 clickable 在外侧，连同 16px 留白一起可点。clickable 自身不改变布局尺寸。
+3. `.padding(16.dp).clickable { }` 中 clickable 在 padding 内侧，只有留白以内的内容区域可点；写成 `.clickable { }.padding(16.dp)` 时 clickable 在外侧，连同 16dp 留白一起可点。clickable 自身不改变布局尺寸。
 4. 因为 `weight` 是 Row / Column 这类容器提供的作用域修饰符，只有在按行或按列排列的容器内容区里才拿得到（第 14 章详解）。
 5. `.clip(...).background(...)` 先裁后铺，底色只出现在裁剪形状内；`.background(...).clip(...)` 先按原始范围铺满底色、再裁剪，形状之外的部分被裁掉。两者最终可见范围不同。
 

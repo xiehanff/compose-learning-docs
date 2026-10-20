@@ -23,6 +23,8 @@
 
 需要点明一个事实：项目里的 `TextFieldDemo.kt` 目前用的是 **value-based** 写法（`value` + `onValueChange` + `remember { mutableStateOf("") }`）。它没有错，官方仍然支持；但官方当前明确推荐 **state-based**，并提供了从 value-based 迁移的文档。所以本章主线讲 state-based，同时保留 value-based 作为对照——一是让你能读懂旧项目，二是官方迁移文档的重点恰好就是两者的换算关系。
 
+阅读路线：初读先看本节项目源码与基础输入/校验，再理解 `TextFieldState` 如何保存文本和选区；后面的迁移与外部同步属于进阶部分。IME 是输入法编辑器（软键盘与输入法的输入过程）；UDF 是单向数据流，即事件传入、状态流出，第 68 章展开。`snapshotFlow` 的基础见第 50 章，ViewModel 同步见第 68 章，生命周期收集见第 70 章；首次阅读可以跳过这些跨章节组合例子，学完相应章节再回看。
+
 ## 3. 项目源码片段
 
 项目现有代码（value-based，节选：省略顶部 import、`Column` 以外的层级与底部回显文字）：
@@ -222,7 +224,7 @@ Button(onClick = { phoneState.setTextAndPlaceCursorAtEnd("13800000000") }) { Tex
 // phoneState.edit { insert(0, "+86 ") }
 ```
 
-组合外部（例如 `LaunchedEffect`、ViewModel）想观察变化，用 `snapshotFlow { state.text }` 收集，例如在 `LaunchedEffect` 里 `collectLatest` 后去更新 ViewModel。
+**进阶：同步到组合外部。** 组合外部（例如 `LaunchedEffect`、ViewModel）想观察变化，可用 `snapshotFlow { state.text }` 收集，再更新 ViewModel。`snapshotFlow` 见第 50 章，`collectLatest` 及取消行为见第 73 章；第一次读到这里可先跳过。
 
 **两种写法的取舍。** 新代码、尤其是会涉及粘贴 / IME 与状态同步的表单，优先 state-based；`value + onValueChange` 仍然受支持，适合旧项目与最简单的场景——例如界面状态本来就是 `StateFlow<UiState>` 里的一堆 `String`（第 68 章的 UDF 架构），改起来牵动一堆代码，此时保留 value-based 完全合理。官方迁移文档也给了折中方案：UI 用 state-based，`uiState: StateFlow` 保持不变，用 `snapshotFlow` 把 `state.text` 同步回 ViewModel。
 

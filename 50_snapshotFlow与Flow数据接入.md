@@ -4,6 +4,8 @@
 
 打通两个方向的数据流：把 Compose 快照状态转成冷流，把外部 Flow 接回 Compose UI。
 
+首次阅读路线：先学 `snapshotFlow` 如何把被读取的状态变化发出来，再看场景一的防抖。Flow 可先理解为「按时间陆续发出值的数据流」；`debounce(300)` 是等输入停下 300ms 再放行，`distinctUntilChanged()` 是过滤连续相同值。场景二需要第 68 章的 ViewModel 与第 70 章的生命周期知识，首次阅读可先跳过；`flowOn` 与 Dispatcher 的细节见第 73 章，回读本章第 4 节时再看。
+
 学完后，你应当能够：
 
 - 理解 snapshotFlow 的发射时机、依赖收集方式与内建去重
@@ -46,7 +48,7 @@ fun SearchScreen(viewModel: SearchViewModel) {
 }
 ```
 
-场景二：把 ViewModel 的 Flow 接回 UI，并感知生命周期。`Loading/Success/Error` 为节选占位（密封接口表示 UI 状态的三个分支）。
+场景二（学完第 68、70 章后回看）：把 ViewModel 的 Flow 接回 UI，并感知生命周期。`Loading/Success/Error` 为节选占位（密封接口表示 UI 状态的三个分支）。
 
 ```kotlin
 @Composable

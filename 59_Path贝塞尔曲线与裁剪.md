@@ -16,27 +16,29 @@
 - `androidx.compose.ui.graphics`：`Path`、`PathFillType`、`clipPath`
 - `androidx.compose.ui.draw`：`clip`
 - `androidx.compose.ui.graphics.drawscope`：`DrawScope.drawPath`
-- `androidx.compose.foundation`：`Image`（配合裁剪演示）
+- `androidx.compose.ui.platform`：`LocalDensity`（把 200dp 换算为 Path 使用的像素坐标）
 
 ## 3. 项目源码片段
 
-用两段三次贝塞尔画一个心形，再把它作为 `clipPath` 把图片裁进心形区域：
+用两段三次贝塞尔画一个心形，再把普通色块和文字裁进心形区域。这样示例不依赖网络图片或额外图片加载库：
 
 ```kotlin
 @Composable
-fun HeartShapeImage() {
+fun HeartShapeCard() {
+    // Path 使用像素坐标，按当前屏幕密度把 200dp 换算为像素
+    val sizePx = with(LocalDensity.current) { 200.dp.toPx() }
     // 心形 Path：先 moveTo 定起点，再两段 cubicTo 画出左右两个圆弧
-    val heartPath = remember {
+    val heartPath = remember(sizePx) {
         Path().apply {
-            val w = 400f
-            val h = 400f
+            val w = sizePx
+            val h = sizePx
             moveTo(w / 2f, h * 0.35f)                    // 心形顶部凹陷处
-            cubicTo(                                     // 右半：控制点把曲线推向右侧
+            cubicTo(                                     // 左半：控制点把曲线推向左侧
                 w * 0.15f, h * 0.15f,                    // 控制点 1
                 w * 0.02f, h * 0.55f,                    // 控制点 2
                 w / 2f, h * 0.85f                        // 终点：底部尖点
             )
-            cubicTo(                                     // 左半：镜像
+            cubicTo(                                     // 右半：镜像
                 w * 0.98f, h * 0.55f,
                 w * 0.85f, h * 0.15f,
                 w / 2f, h * 0.35f
@@ -49,13 +51,10 @@ fun HeartShapeImage() {
         modifier = Modifier
             .size(200.dp)
             .clipPath(heartPath)          // 裁剪：只有心形区域内的内容可见
+            .background(Color(0xFFE91E63)),
+        contentAlignment = Alignment.Center,
     ) {
-        Image(
-            painter = rememberAsyncImagePainter("https://example.com/avatar.png"),
-            contentDescription = "头像",
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize()
-        )
+        Text("心形内容", color = Color.White)
     }
 }
 
@@ -85,7 +84,7 @@ fun WaveLine() {
 
 2. **贝塞尔曲线的本质是"控制点拉曲线"**。二次贝塞尔只有一个控制点，曲线像一个被该点"拉弯"的橡皮筋，适合圆弧类形状；三次贝塞尔有两个控制点，两个控制点各自牵引曲线两端，能表达 S 形、心形这种更复杂的曲率变化。心形代码里，两个 `cubicTo` 各自用两个控制点把曲线向两侧推开，最后在底部汇成尖点。控制点方向错了，曲线就拐向相反方向。记住：控制点决定曲线的**趋势**，不是曲线必须经过的点（只有起点和终点是必经的）。
 
-3. **`clipPath` 是"把画面裁进路径内"**。`Modifier.clipPath(path)` 让后续绘制和所有子内容都只显示在路径内部，路径外的部分被裁掉。它同时作用于绘制层和子组件——上例中图片被裁成心形，就是子内容被裁剪的典型。`Modifier.clip(shape)` 则是用内置形状（圆角矩形、圆形等）裁剪，是 `clipPath` 的便捷特例。裁剪不影响布局尺寸，控件占位仍是 200dp，只是视觉上只剩心形。记住：裁剪是"显示层"的概念，不改变测量结果。
+3. **`clipPath` 是"把画面裁进路径内"**。`Modifier.clipPath(path)` 让后续绘制和所有子内容都只显示在路径内部，路径外的部分被裁掉。它同时作用于绘制层和子组件——上例中文字与色块都被裁成心形，就是子内容被裁剪的典型。`Modifier.clip(shape)` 则是用内置形状（圆角矩形、圆形等）裁剪，是 `clipPath` 的便捷特例。裁剪不影响布局尺寸，控件占位仍是 200dp，只是视觉上只剩心形。记住：裁剪是"显示层"的概念，不改变测量结果。
 
 4. **`fillType` 决定自相交路径怎么填**。默认 `NonZero`（非零环绕）按环绕方向计数判断内外；`EvenOdd`（奇偶）规则是"从一点向外画射线，穿过边界的次数为奇数则在内部"。画五角星、带孔洞的图形时，自相交区域需要 `EvenOdd` 才能得到正确镂空。一般简单图形不用管，遇到"内部不该填充"的异常时再检查它。记住：`fillType` 只在路径自相交或含子环时才有意义。
 
@@ -95,8 +94,7 @@ fun WaveLine() {
 
 1. 组合阶段：`remember` 创建心形 `Path`，`moveTo` 定起点后两段 `cubicTo` 依次执行，`close()` 闭合，路径构建完成。
 2. 布局阶段：`Box` 按 `size(200.dp)` 测量，`clipPath` 不改变尺寸。
-3. 绘制阶段：`clipPath` 先生效，建立心形裁剪区域；随后 `Image` 按 `ContentScale.Crop` 缩放图片，绘制时只保留心形内部的像素。
-4. 图片加载完成（异步），重绘一次，头像以心形呈现。
+3. 绘制阶段：`clipPath` 先生效，建立心形裁剪区域；随后绘制色块和文字，只保留心形内部的像素。
 5. `WaveLine` 的 Canvas 内每帧（尺寸不变时一次）构建波浪 `Path` 并 `drawPath` 描边，显示平滑波浪线。
 
 ## 6. Flutter / Dart 3 对照
@@ -123,8 +121,13 @@ class HeartClipper extends CustomClipper<Path> {
 
 ClipPath(
   clipper: HeartClipper(),
-  child: Image.network('https://example.com/avatar.png',
-      fit: BoxFit.cover),
+  child: Container(
+    width: 200,
+    height: 200,
+    color: const Color(0xFFE91E63),
+    alignment: Alignment.center,
+    child: const Text('心形内容', style: TextStyle(color: Colors.white)),
+  ),
 )
 ```
 
@@ -154,4 +157,4 @@ ClipPath(
 
 ## 9. 本章总结
 
-`Path` 用 `moveTo` 定起点、`lineTo`/贝塞尔曲线/`arcTo` 勾勒轮廓、`close` 闭合，是绘制任意形状的通用工具；控制点决定曲线趋势，是调形的关键。`clipPath` 把内容裁进路径内部，不影响布局，与 `drawPath` 配合即可做出心形头像、波浪线等效果。
+`Path` 用 `moveTo` 定起点、`lineTo`/贝塞尔曲线/`arcTo` 勾勒轮廓、`close` 闭合，是绘制任意形状的通用工具；控制点决定曲线趋势，是调形的关键。`clipPath` 把内容裁进路径内部，不影响布局，与 `drawPath` 配合即可做出心形卡片、波浪线等效果。

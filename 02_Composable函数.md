@@ -273,13 +273,18 @@ Text                     基础文字组件
 ```kotlin
 @Composable
 fun HomeScreen() {
-    Scaffold {
-        LazyColumn {
-            item {
-                Text("Compose 组件示例")
-            }
-        }
-    }
+    PageTitle()
+    WelcomeMessage()
+}
+
+@Composable
+fun PageTitle() {
+    Text("Compose 组件示例")
+}
+
+@Composable
+fun WelcomeMessage() {
+    Text("欢迎开始学习")
 }
 ```
 
@@ -287,12 +292,14 @@ fun HomeScreen() {
 
 ```text
 HomeScreen
-└── Scaffold
-    └── LazyColumn
-        └── Text
+├── PageTitle
+│   └── Text
+└── WelcomeMessage
+    └── Text
 ```
 
 每一层都是通过函数调用组合起来的。
+这里展示的是调用关系；子项如何排列属于布局问题，第 8 章再学 Column、Row 等容器。
 
 这也是“Compose”这个名称的核心：
 

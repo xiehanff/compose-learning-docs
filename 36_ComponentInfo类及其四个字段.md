@@ -30,7 +30,7 @@ class ComponentInfo(
 
 ## 4. 逐步解释
 
-id 同时用于路由参数、列表 key 和查询；title 用于首页和详情标题；description 是说明文本；composeExample 保存稍后可执行的 UI 函数。
+id 同时用于路由参数、列表 key 和查询；title 用于首页和详情标题；description 是说明文本；composeExample 保存稍后可执行的 UI 函数。`@Composable () -> Unit` 可读作「一个带 Compose 标记、没有参数、调用后不返回值的函数」；第 37 章会专门讲这种函数值。
 
 ComponentInfo 只是数据模型，不直接绘制，所以类不需要 @Composable。当前使用普通 class，因为项目只创建条目并读取属性，不依赖 copy、componentN 或结构相等。若改成 data class，要考虑函数字段的比较是否符合业务含义。
 

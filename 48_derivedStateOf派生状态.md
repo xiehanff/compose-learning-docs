@@ -24,11 +24,9 @@
 
 典型场景：列表滚动过第一项时显示「回到顶部」按钮。`firstVisibleItemIndex` 随滚动不断变化（1、2、3……），但按钮显示与否只取决于「是否跨过 0」这个低频边界。
 
-<!-- compile
-prelude: val scope = rememberCoroutineScope()
--->
 ```kotlin
 val listState = rememberLazyListState()
+val scope = rememberCoroutineScope() // 点击回调需要启动滚动协程；协程见第 29 章
 
 // 派生状态：只在 firstVisibleItemIndex 跨过 0 这个边界时才更新
 val showBackToTop by remember {

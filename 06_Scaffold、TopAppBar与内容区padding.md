@@ -47,6 +47,8 @@ Scaffold(
 
 ### 4.1 innerPadding 与嵌套 Scaffold 的系统栏边距（WindowInsets）
 
+> **首次阅读可先跳过：**本节是把 Scaffold 放进固定高度示例时才需要的进阶边界。先掌握上一节的核心规则即可：Scaffold 把内容区所需的 `padding` 交给你，内容根要应用它；`WindowInsets`、嵌套栏与重复消费会在第 78 章系统讲解。读完第 78 章后再回来核对本节。
+
 `components/ScaffoldDemo.kt` 演示了一个容易踩坑的场景：把「迷你 Scaffold」嵌进一个固定高度的容器（高度用尺寸修饰符写成 `440.px`，尺寸修饰符详见第 13 章）里，用于在一屏内展示完整骨架。此时必须给槽位组件清零「系统栏边距」。
 
 这里的「系统栏边距」在 Compose 里叫 `WindowInsets`：状态栏、底部导航条会占住屏幕的一部分，系统把「被占用了多少」这个信息告诉应用，这个信息就是 `WindowInsets`（第 78 章详解）。示例把这些值清零：

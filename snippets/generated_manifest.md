@@ -8,27 +8,27 @@
 **不代表章节正文已说明需要 opt-in**；弃用 API 也不会在普通编译里报错，
 由独立严格编译发现：`./gradlew compileDebugKotlin -PsnippetsStrictWarnings --rerun-tasks`。
 
-共 61 个片段待校验。
+共 60 个片段待校验。
 
 | 生成文件 | 章号 | 来源（文件:行号） | 模式 | 片段首行 |
 | --- | --- | --- | --- | --- |
 | `Ch07_01.kt` | Ch07 | `07_Modifier的本质、作用范围与调用顺序.md:27` | body | `Text(` |
-| `Ch08A_01.kt` | Ch08A | `08A_FlowRow与流式布局.md:30` | decls | `@Composable` |
+| `Ch08A_01.kt` | Ch08A | `08A_FlowRow与流式布局.md:27` | body | `// 先用固定列表观察布局；动态增删会在第 21—22 章讲状态后再练` |
 | `Ch08_01.kt` | Ch08 | `08_Column、Row、Arrangement与Alignment.md:25` | body | `Column(` |
 | `Ch09_01.kt` | Ch09 | `09_Box、层叠布局与FlutterStack.md:25` | body | `Box(` |
-| `Ch10_01.kt` | Ch10 | `10_Card、Surface与容器组件的区别.md:30` | body | `Card(` |
+| `Ch10_01.kt` | Ch10 | `10_Card、Surface与容器组件的区别.md:26` | body | `Card(` |
 | `Ch12_01.kt` | Ch12 | `12_Image、Painter、contentDescription与ContentScale.md:26` | body | `Image(` |
 | `Ch13_01.kt` | Ch13 | `13_padding、size、fillMaxWidth与fillMaxSize.md:28` | body | `LazyColumn(` |
 | `Ch14_01.kt` | Ch14 | `14_weight、Spacer与FlutterExpanded.md:25` | body | `Row(Modifier.fillMaxWidth()) {` |
 | `Ch15_01.kt` | Ch15 | `15_RoundedCornerShape、background、clip与border.md:28` | body | `Box(` |
 | `Ch18_01.kt` | Ch18 | `18_LazyVerticalGrid与GridCells.md:24` | body | `LazyVerticalGrid(` |
 | `Ch19_01.kt` | Ch19 | `19_verticalScroll、horizontalScroll与rememberScrollState.md:24` | body | `Column(` |
-| `Ch21_01.kt` | Ch21 | `21_remember、mutableStateOf与状态委托.md:26` | body | `var showDialog by remember { mutableStateOf(false) }` |
+| `Ch21_01.kt` | Ch21 | `21_remember、mutableStateOf与状态委托.md:26` | body | `var expanded by remember { mutableStateOf(false) }` |
 | `Ch22_01.kt` | Ch22 | `22_重组什么时候发生，什么代码可能重复执行.md:31` | body | `val imageBitmap = remember {` |
 | `Ch23_01.kt` | Ch23 | `23_rememberSaveable与配置变化后的状态恢复.md:26` | body | `// components/StateDemo.kt:135：只要跨重组保留，用 remember` |
-| `Ch24_01.kt` | Ch24 | `24_状态提升：状态放在哪里，事件回调传向哪里.md:28` | decls | `// 节选：单个下拉框——「输入框展示选中值 + 下拉菜单上报选择」` |
-| `Ch26A_01.kt` | Ch26A | `26A_TextField、OutlinedTextField与输入状态.md:32` | body | `var name by remember { mutableStateOf("") }` |
-| `Ch26A_02.kt` | Ch26A | `26A_TextField、OutlinedTextField与输入状态.md:82` | body | `import androidx.compose.foundation.text.input.InputTransformation` |
+| `Ch24_01.kt` | Ch24 | `24_状态提升：状态放在哪里，事件回调传向哪里.md:30` | decls | `// 节选：单个下拉框——「输入框展示选中值 + 下拉菜单上报选择」` |
+| `Ch26A_01.kt` | Ch26A | `26A_TextField、OutlinedTextField与输入状态.md:34` | body | `var name by remember { mutableStateOf("") }` |
+| `Ch26A_02.kt` | Ch26A | `26A_TextField、OutlinedTextField与输入状态.md:84` | body | `import androidx.compose.foundation.text.input.InputTransformation` |
 | `Ch26B_01.kt` | Ch26B | `26B_Checkbox、Switch与Slider选择控件.md:25` | body | `var agreed by remember { mutableStateOf(false) }          // 是否同意协议` |
 | `Ch26_01.kt` | Ch26 | `26_Button、IconButton与Icon.md:28` | body | `// components/ButtonDemo.kt：五种风格按钮，按视觉权重从高到低排列` |
 | `Ch27_01.kt` | Ch27 | `27_AlertDialog.md:26` | body | `if (showDialog) {` |
@@ -43,7 +43,6 @@
 | `Ch44_02.kt` | Ch44 | `44_.px与.pxSp()扩展属性和函数.md:44` | body | `Column(` |
 | `Ch46_01.kt` | Ch46 | `46_重组的跳过机制与位置记忆.md:31` | decls | `@Composable` |
 | `Ch46_02.kt` | Ch46 | `46_重组的跳过机制与位置记忆.md:59` | body | `@Composable` |
-| `Ch48_01.kt` | Ch48 | `48_derivedStateOf派生状态.md:31` | body | `val listState = rememberLazyListState()` |
 | `Ch49_01.kt` | Ch49 | `49_rememberUpdatedState与rememberCoroutineScope.md:29` | decls | `@Composable` |
 | `Ch51_01.kt` | Ch51 | `51_animateAsState与Tween基础动画.md:26` | decls | `@Composable` |
 | `Ch52_01.kt` | Ch52 | `52_Animatable与手动动画控制.md:31` | decls | `@Composable` |
@@ -64,9 +63,9 @@
 | `Ch64_01.kt` | Ch64 | `64_自定义Modifier.md:31` | body | `fun Modifier.expandClickArea(` |
 | `Ch64_02.kt` | Ch64 | `64_自定义Modifier.md:79` | body | `fun Modifier.pressHighlight(): Modifier = composed {` |
 | `Ch65_01.kt` | Ch65 | `65_手势检测pointerInput.md:66` | body | `Modifier.pointerInput(Unit) {` |
-| `Ch71A_01.kt` | Ch71A | `71A_Navigation3与NavDisplay.md:90` | decls | `import androidx.navigation3.runtime.NavKey` |
-| `Ch71A_02.kt` | Ch71A | `71A_Navigation3与NavDisplay.md:104` | decls | `import androidx.compose.material3.Button` |
-| `Ch71A_03.kt` | Ch71A | `71A_Navigation3与NavDisplay.md:159` | body | `NavDisplay(` |
+| `Ch71A_01.kt` | Ch71A | `71A_Navigation3与NavDisplay.md:92` | decls | `import androidx.navigation3.runtime.NavKey` |
+| `Ch71A_02.kt` | Ch71A | `71A_Navigation3与NavDisplay.md:106` | decls | `import androidx.compose.material3.Button` |
+| `Ch71A_03.kt` | Ch71A | `71A_Navigation3与NavDisplay.md:161` | body | `NavDisplay(` |
 | `Ch75_01.kt` | Ch75 | `75_Lazy列表性能优化.md:33` | decls | `@Composable` |
 | `Ch75_02.kt` | Ch75 | `75_Lazy列表性能优化.md:75` | decls | `@Composable` |
 | `Ch78_01.kt` | Ch78 | `78_边缘到边缘与WindowInsets.md:55` | body | `@Composable` |

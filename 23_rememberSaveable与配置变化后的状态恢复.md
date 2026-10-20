@@ -35,9 +35,11 @@ var showDialog by remember { mutableStateOf(false) }
 
 ## 4. 逐步解释
 
-普通 remember 能跨重组保留，但组合被销毁后就没有保证。屏幕旋转、Activity 重建或导航目的地重建时，值可能回到初始状态。`rememberSaveable` 会借助 SaveableStateRegistry 和 Android 保存状态机制恢复基础可保存值。
+普通 remember 能跨重组保留，但组合被销毁后就没有保证。屏幕旋转、Activity 重建或导航目的地重建时，值可能回到初始状态。`rememberSaveable` 会借助 Compose 与 Android 的保存状态机制恢复基础可保存值；不需要自己直接操作底层注册表。
 
-Boolean、String、Int 等通常可直接保存；自定义类需要 Saver，最好只保存恢复 UI 所需的最小字段。rememberSaveable 仍不是数据库：登录令牌、订单和长期业务数据应放持久层或 ViewModel/SavedStateHandle。弹窗是否正在显示往往不必恢复，而用户输入、筛选条件和 Tab 索引通常值得保存。
+Boolean、String、Int 等通常可直接保存。自定义类需要提供 `Saver`：它说明「把对象拆成哪些受支持的小值来保存，以及如何用这些值重新构造对象」。例如，筛选条件可只保存查询词与是否仅看收藏；实际拆分与恢复写法见第 72 章的 `listSaver` 示例。只保存恢复 UI 所需的最小字段。
+
+`rememberSaveable` 不是数据库：它适合恢复小型 UI 状态，不保证用户主动结束应用后仍能恢复。长期业务数据（如订单）应写入持久层；ViewModel 的轻量恢复状态会在第 68 章介绍。
 
 ## 5. 实际执行过程
 
@@ -72,13 +74,13 @@ class DemoState extends State<Demo> with RestorationMixin {
 
 1. 普通 remember 在 Activity 重建后一定保留吗？
 2. 哪些类型适合直接 saveable？
-3. 登录令牌应只放 rememberSaveable 吗？
+3. 订单等长期业务数据应只放 rememberSaveable 吗？
 
 答案：
 
 1. 不一定。普通 remember 能跨重组保留，但组合被销毁（旋转、Activity 重建、导航重建）后没有保证。
 2. Boolean、String、Int 等基础可保存类型；自定义类需要 Saver，并只保存恢复 UI 所需的最小字段。
-3. 不应。rememberSaveable 不是数据库，登录令牌、订单等长期业务数据应放在持久层或 ViewModel/SavedStateHandle。
+3. 不应。rememberSaveable 不是数据库，订单等长期业务数据应放在持久层；ViewModel 的轻量恢复状态另有机制。
 
 ## 9. 本章总结
 
