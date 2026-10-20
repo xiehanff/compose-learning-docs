@@ -112,9 +112,9 @@ UDF 的闭环：UI 事件（点击）→ 调用 ViewModel 方法 → 方法修�
 
 `flow { }` 这类 builder、以及 Room/DataStore 返回的 Flow 默认是冷流，每个收集者都会重新执行上游，直接暴露给 UI 收集成本高。用 `stateIn` 把它转成热流托管在 viewModelScope：`stateIn` 的作用就是给一个 Flow 挂上"共享"与"何时启动/停止上游"的策略，让多个订阅者共用同一个上游、并得到一个随时可读当前值的结果；`WhileSubscribed(5000)` 表示最后一个订阅者离开 5 秒后停止上游，避免后台空跑。（`stateIn` 的参数全貌与数据库场景下的用法第 72 章会再讲。）
 
-最后是分工：remember + mutableStateOf 管本地 UI 状态（输入框、开关、展开态），ViewModel + StateFlow 管页面级状态（需要跨重组、跨配置变化保留的数据）。
+最后是分工：remember + mutableStateOf 管本地 UI 状态（输入框、开关、展开态），ViewModel + StateFlow 管页面级状态（需要跨重组、跨配置变化保留的数据）。ViewModel 会跨配置变化存活，但不会跨进程死亡；需要在系统重建后恢复的少量键值，可用 SavedStateHandle（ViewModel 按键保存和读取小状态的对象），长期数据则写入数据库或 DataStore。
 
-记住：ViewModel 把业务结果归约为可恢复、可测试的 UI State；UI 把用户动作传入状态持有者。Channel 不是“恰好一次”的保证，只有明确接受其丢失/竞争语义时才使用。
+记住：ViewModel 把业务结果归约为可测试的 UI State；UI 把用户动作传入状态持有者。Channel 不是“恰好一次”的保证，只有明确接受其丢失/竞争语义时才使用。
 
 ## 5. 实际执行过程
 
@@ -193,7 +193,7 @@ class CounterScreen extends StatelessWidget {
 
 ## 9. 本章总结
 
-页面级状态用 ViewModel + StateFlow 管理，事件只从 UI 流入、状态只从 ViewModel 流出，形成 UDF 闭环。重要业务结果归约为可恢复的 UI State；纯 UI 行为留在 UI 层；`flow { }` 这类冷流可用 stateIn + WhileSubscribed 托管。不要把 Channel 当作“一次性事件”的万能答案。
+页面级状态用 ViewModel + StateFlow 管理，事件只从 UI 流入、状态只从 ViewModel 流出，形成 UDF 闭环。重要业务结果归约为 UI State；纯 UI 行为留在 UI 层；`flow { }` 这类冷流可用 stateIn + WhileSubscribed 托管。不要把 Channel 当作“一次性事件”的万能答案。
 
 官方参考：
 

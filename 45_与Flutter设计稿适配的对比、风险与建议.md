@@ -39,6 +39,26 @@ val scale = (screenWidth / designWidth)
 
 Flutter ScreenUtil 常用显式 `.w/.sp`，标准 Widget 默认逻辑像素不被全局重定义，影响相对局部。但任何框架都不应把“设计稿同比放大”当成真正适配。生产建议优先用约束、weight、WindowSizeClass、断点和响应式结构；缩放只用于少量视觉尺寸并设置上下限；文字尊重系统 fontScale；覆盖手机、平板、横屏、分屏和大字体测试。
 
+一个最小的 Compose 响应式例子是按父容器宽度切换排列方向：
+
+```kotlin
+@Composable
+fun AdaptiveSummary(title: String, detail: String) {
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        if (maxWidth < 600.dp) {
+            Column { Text(title); Text(detail) }
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                Text(title)
+                Text(detail)
+            }
+        }
+    }
+}
+```
+
+`BoxWithConstraints` 把父容器的最大宽度作为 `maxWidth` 提供给内容；这里的 `600.dp` 只是演示断点。完整应用应先读第 79 章的窗口分类与布局策略，再决定断点和页面结构。
+
 ## 5. 实际执行过程
 
 1. 判断窗口类别
@@ -85,3 +105,5 @@ LayoutBuilder(
 ## 9. 本章总结
 
 当前方案适合教学和强设计稿还原；生产环境应以响应式结构和无障碍为先，把设计稿倍率限制为辅助工具。
+
+官方参考：[Compose 布局基础](https://developer.android.com/develop/ui/compose/layouts/basics)、[使用窗口尺寸类别构建自适应布局](https://developer.android.com/develop/adaptive-apps/guides/use-window-size-classes)。

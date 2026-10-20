@@ -4,7 +4,7 @@
 
 学完后，你应当能够：
 
-- 分清四层状态的边界：组合内存（remember）→ 配置变化/进程重建（rememberSaveable）→ 跨启动键值（DataStore）→ 结构化大数据（Room）
+- 分清四层状态的边界：组合内存（remember）→ 配置变化及系统可恢复时的进程重建（rememberSaveable）→ 跨启动键值（DataStore）→ 结构化大数据（Room）
 - 用 Saver（`listSaver` / `mapSaver`）把自定义类安全地存进 rememberSaveable
 - 用 DataStore Preferences 读写设置项，理解其 Flow 异步模型
 - 用 Room 的 Flow 查询驱动 UI，并在 ViewModel 中 `stateIn` 成 StateFlow
@@ -20,6 +20,8 @@
 ## 3. 项目源码片段
 
 场景：一个笔记 App：编辑页的草稿要扛住旋转屏幕（rememberSaveable + 自定义 Saver）；主题、字号这类用户设置要跨启动保存（DataStore）；笔记列表要持久化并实时响应增删改（Room + Flow）。
+
+以下是展示 API 关系的教学片段，不是可直接运行的完整工程：省略了 imports、Gradle 插件/处理器配置、DataStore 的依赖注入，以及 Room 数据库实例的创建。Room 的 KSP/KAPT 配置可先回看预备篇 B；完整接线时再分别按 DataStore 与 Room 的官方入门步骤补齐。
 
 ```kotlin
 // ---------- 第一层：rememberSaveable + 自定义 Saver ----------
@@ -42,7 +44,11 @@ fun EditorScreen() {
 }
 
 // ---------- 第二层：DataStore Preferences ----------
+data class AppSettings(val theme: String, val fontSize: Float)
+
 private val Context.dataStore by preferencesDataStore(name = "settings")
+private val KEY_THEME = stringPreferencesKey("theme")
+private val KEY_FONT_SIZE = floatPreferencesKey("font_size")
 
 val Context.settingsFlow: Flow<AppSettings>
     get() = dataStore.data.map { prefs ->
@@ -161,3 +167,5 @@ final rows = await db.query('notes', orderBy: 'updatedAt DESC');
 ## 9. 本章总结
 
 状态持久化的核心是「按数据特征选对层」：临时小状态交给 rememberSaveable，跨启动的键值交给 DataStore，结构化大数据交给 Room。三者的共同点是数据源与 UI 通过 Flow / StateFlow 解耦，记住「数据层不依赖 UI」这条原则，持久化代码就不会写乱。
+
+官方参考：[在 Compose 中保存 UI 状态](https://developer.android.com/develop/ui/compose/state-saving)、[DataStore](https://developer.android.com/topic/libraries/architecture/datastore)、[使用 Room 保存本地数据](https://developer.android.com/training/data-storage/room)。

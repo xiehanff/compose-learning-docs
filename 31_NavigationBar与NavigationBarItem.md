@@ -42,7 +42,7 @@ NavigationBar {
 
 NavigationBar 负责底栏容器，NavigationBarItem 表示一个入口。selectedIndex 是唯一真相，每个条目根据它计算 selected，点击后更新索引。
 
-项目示例只演示组件视觉，并不会自动切换独立页面。真实 App 可让内容区根据 selectedIndex 切换，也可将底栏与 NavController 当前目的地绑定。使用 NavController 时还要处理 launchSingleTop、saveState/restoreState 和避免重复压栈。
+项目示例只演示组件视觉，并不会自动切换独立页面。真实 App 可让内容区根据 selectedIndex 切换，也可将底栏与 NavController 当前目的地绑定。使用 NavController 时还要处理 `launchSingleTop`（避免同一目的地重复压栈）、`saveState` / `restoreState`（切换时保留并恢复子栈状态）；完整返回栈配置见第 34 章。
 
 ## 5. 实际执行过程
 

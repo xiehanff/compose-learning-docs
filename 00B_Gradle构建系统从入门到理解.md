@@ -30,6 +30,8 @@ Gradle 使用“任务”描述这些步骤。任务之间有输入、输出和�
 
 应用 `com.android.application` 插件后，AGP 会注册 Android 所需的大量任务。你通常不需要自己编写编译和打包任务。
 
+首次遇到的 `KSP`（Kotlin Symbol Processing）和 `KAPT`（Kotlin Annotation Processing Tool）是为注解处理/代码生成服务的工具，例如 Room、Hilt 可能会用到。初学 Compose 时不必先掌握它们；暂时没有生成代码依赖时，可以先跳过相关构建阶段。
+
 ## 3. 六个容易混淆的版本
 
 | 版本 | 常见位置 | 决定什么 |
@@ -39,7 +41,7 @@ Gradle 使用“任务”描述这些步骤。任务之间有输入、输出和�
 | Gradle | `gradle-wrapper.properties` | 构建系统本身的版本 |
 | AGP | `libs.versions.toml` 或根构建脚本 | Android 构建能力与 DSL |
 | Kotlin | 插件版本或新版 AGP 内置 Kotlin 配置 | Kotlin 编译能力和语言版本 |
-| Compose BOM/库 | `libs.versions.toml`、dependencies | Compose UI 库的组合版本 |
+| Compose BOM（Bill of Materials，版本对齐清单）/库 | `libs.versions.toml`、dependencies | Compose UI 库的组合版本 |
 
 它们不是同一个版本号，也不能全部随意升级到最新。
 

@@ -212,6 +212,7 @@ data class User(
     val name: String,
 )
 
+val user = User(id = 1, name = "小明")
 val updated = user.copy(name = "新名字")
 ```
 
@@ -319,7 +320,8 @@ data class Result<T>(
     val error: String?,
 )
 
-val userResult: Result<User> = Result(data = user, error = null)
+val sampleUser = User(id = 1, name = "小明")
+val userResult: Result<User> = Result(data = sampleUser, error = null)
 val listResult: Result<List<User>> = Result(data = listOf(user), error = null)
 ```
 

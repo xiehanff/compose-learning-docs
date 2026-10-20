@@ -21,26 +21,22 @@
 
 ## 3. 项目源码片段
 
-<!-- compile
-prelude: val onClick: () -> Unit = {}
-prelude: class Info(val title: String)
-prelude: val info = Info("卡片")
--->
+<!-- compile -->
 ```kotlin
 Card(
-    onClick = onClick,
+    onClick = {},
     modifier = Modifier.fillMaxWidth(),
 ) {
-    Row(Modifier.fillMaxWidth().padding(16.px)) {
-        Text(info.title)
+    Row(Modifier.fillMaxWidth().padding(16.dp)) {
+        Text("卡片内容")
     }
 }
 
 Surface(
-    shape = RoundedCornerShape(12.px),
+    shape = RoundedCornerShape(12.dp),
     color = MaterialTheme.colorScheme.surfaceVariant,
 ) {
-    Text("主题化容器", Modifier.padding(16.px))
+    Text("主题化容器", Modifier.padding(16.dp))
 }
 ```
 

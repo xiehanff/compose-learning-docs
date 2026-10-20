@@ -95,7 +95,7 @@ fun ChatPage() {
 2. Compose 内容开始组合，Scaffold 读取 `ScaffoldDefaults.contentWindowInsets`（系统栏类 insets；某个方向有对应的 topBar / bottomBar 时，该方向的 insets 不计入），把上下左右算成一份 `PaddingValues`。
 3. Scaffold 把这份 `PaddingValues` 作为 `innerPadding` 交给内容 lambda——注意它不会替你应用。内容根自己执行 `padding(innerPadding)` 避开栏与系统栏，再执行 `consumeWindowInsets(innerPadding)` 声明已消费，内层就不会重复叠加。
 4. 用户点击输入框，软键盘弹出：系统分发 ime insets 变化，imePadding() 监听到变化，输入框所在列自动上移键盘高度。
-5. 用户旋转屏幕或折叠屏展开：insets 重新计算，所有 windowInsetsPadding 触发重组，间距自动修正，无需任何手动监听代码。
+5. 用户旋转屏幕或折叠屏展开：insets 重新计算，内置 windowInsetsPadding 按新值更新布局间距；这不要求每次变化都触发重组，也无需手动监听代码。
 
 ## 6. Flutter / Dart 3 对照
 

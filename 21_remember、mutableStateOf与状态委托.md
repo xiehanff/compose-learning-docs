@@ -23,32 +23,22 @@
 
 <!-- compile -->
 ```kotlin
-var showDialog by remember { mutableStateOf(false) }
-var result by remember { mutableStateOf<String?>(null) }
+var expanded by remember { mutableStateOf(false) }
 
-Button(onClick = { showDialog = true }) {
-    Text(result ?: "弹出弹窗")
-}
-
-if (showDialog) {
-    AlertDialog(
-        onDismissRequest = { showDialog = false },
-        title = { Text("选择") },
-        text = { Text("点确定会把结果写回外层状态") },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    result = "已确认"     // 改状态 → 上面的 Text 重组
-                    showDialog = false     // 关弹窗 → if 分支里的内容整块移除
-                },
-            ) { Text("确定") }
-        },
-        dismissButton = {
-            TextButton(onClick = { showDialog = false }) { Text("取消") }
-        },
+Column {
+    Text(
+        text = if (expanded) "已展开" else "点此展开",
+        modifier = Modifier
+            .clickable { expanded = !expanded }
+            .padding(16.dp),
     )
+    if (expanded) {
+        Text("状态变为 true 后，这段内容才会显示")
+    }
 }
 ```
+
+本例只用已经见过的 `Text`、`Column` 和点击修饰符来观察状态变化。项目还会用同一套状态知识控制弹窗；`AlertDialog`、`Button` 等控件 API 分别在第 26—27 章学习。
 
 ## 4. 逐步解释
 
@@ -60,7 +50,7 @@ if (showDialog) {
 
 1. 首次组合执行 remember 并创建 State
 2. UI 读取状态，Compose 记录依赖
-3. 点击回调修改状态值
+3. 点击文字的回调修改状态值
 4. 相关组合范围失效
 5. 下一帧重组并根据新值显示或移除 UI
 
