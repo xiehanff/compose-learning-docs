@@ -18,6 +18,8 @@
 - `androidx.compose.foundation`：`Modifier.background`
 - `androidx.compose.ui`：`Modifier.drawWithCache`（缓存 Brush）
 
+> 官方参考：[Brush](https://developer.android.com/reference/kotlin/androidx/compose/ui/graphics/Brush)
+
 ## 3. 项目源码片段
 
 线性渐变背景 + 径向渐变圆形 + 扫描渐变"表盘"，展示三种渐变 Brush 的典型用法：
@@ -65,7 +67,8 @@ fun GradientShowcase() {
     }
 }
 
-// 渐变动画：用 animateFloat 的进度驱动颜色插值，Brush 每次重建但缓存避免每帧分配
+// 渐变动画：progress 逐帧推导出新的 start/end，缓存块读取的值每帧都变，
+// 因此这里 drawWithCache 并不能省掉逐帧重建 Brush 的分配——见第 4 节第 4 点的讨论
 @Composable
 fun AnimatedGradient() {
     val transition = rememberInfiniteTransition(label = "gradient")
@@ -100,11 +103,11 @@ fun AnimatedGradient() {
 
 2. **三种渐变各管各的"方向"**。`linearGradient` 沿一条直线过渡：`Brush.linearGradient(colors, start, end)` 自定义起终点，`horizontalGradient`/`verticalGradient` 是它的上下/左右快捷方式；`radialGradient` 从 `center` 向 `radius` 外扩散，参数是圆心和半径；`sweepGradient` 绕中心旋转一周过渡，像表盘色带或雷达扫描。共同参数 `colors` 是颜色列表（至少两个），`colorStops` 可以指定每个颜色的位置（0f..1f）。记住：选 Brush 先想"渐变沿着什么形状走"——直线、圆还是圆周。
 
-3. **`Brush.shader` 通往底层 `Shader`**。`ShaderBrush` 内部持有 `androidx.compose.ui.graphics.Shader`，`Brush.shader(shader)` 可以从任意 `Shader` 构造 Brush。`Shader` 是更底层的着色器抽象，支持 `TileMode`（`Clamp`/`Repeat`/`Mirror`）控制渐变区域外的行为：`Clamp` 用边缘色填充、`Repeat` 平铺重复、`Mirror` 镜像翻转。常规渐变用 `Brush` 就够，只有需要平铺、图像纹理时才下沉到 `Shader`。记住：`Brush` 是面向开发者的便捷层，`Shader` 是底层实现，两者通过 `Brush.shader` 桥接。
+3. **`Brush.shader` 通往底层 `Shader`**。`ShaderBrush` 不预持固定 Shader，而是在绘制时按区域尺寸调用 `createShader(size)` 创建底层 `androidx.compose.ui.graphics.Shader`；`Brush.shader(shader)` 可以从任意现成 `Shader` 构造 Brush。`Shader` 是更底层的着色器抽象，支持 `TileMode`（`Clamp`/`Repeat`/`Mirror`）控制渐变区域外的行为：`Clamp` 用边缘色填充、`Repeat` 平铺重复、`Mirror` 镜像翻转。常规渐变用 `Brush` 就够，只有需要平铺、图像纹理时才下沉到 `Shader`。记住：`Brush` 是面向开发者的便捷层，`Shader` 是底层实现，两者通过 `Brush.shader` 桥接。
 
 4. **渐变动画的两种思路**。一是“颜色插值”：用 `lerp(colorA, colorB, progress)` 逐帧算出中间色，再创建对应 Brush；二是“几何变化”：让渐变起止位置或图层变换随动画变化。`drawWithCache` 只有在尺寸和它读取的 State 不变时才能复用对象；如果 Brush 本身每帧依赖动画 State，缓存构建块也会每帧失效，不能宣称消除了逐帧分配。应尽量缓存静态颜色、Path 等不变对象，只让必要的绘制参数变化，并用性能工具验证。
 
-5. **渐变文字**（简述）。`Text` 的默认 `color` 只接受纯色；要渐变文字，需要配合 `drawText`（`TextMeasurer`）把文字画到 `Paint` 上，并给 Paint 设 `shader` 为渐变。这条链路较深，本章先知道"文字渐变 = drawText + Shader"即可，实际项目用到再展开。
+5. **渐变文字**（简述）。`Text` 的默认 `color` 只接受纯色；要渐变文字，需要用 `TextMeasurer` 测出 `TextLayoutResult`，再在 `DrawScope.drawText` 中传入一个把 `shader` 设为渐变的 `Paint`，让文字按渐变着色绘制。这条链路较深，本章先知道"文字渐变 = drawText + Shader"即可，实际项目用到再展开。
 
 ## 5. 实际执行过程
 
@@ -151,7 +154,7 @@ Container(
 ## 7. 常见错误
 
 1. **颜色列表与位置数组长度不匹配**。`colors` 给三个颜色、`colorStops` 只给两个位置，抛异常或效果错乱。`colorStops` 必须与 `colors` 一一对应（长度相同）。
-2. **`radialGradient` 忘了 `center`/`radius`**。默认 `center` 是画布中心、`radius` 是 `Float.POSITIVE_INFINITY`，效果可能与预期差异很大（比如渐变只集中在角落）。绘制到具体形状时显式传 `center` 与 `radius`。
+2. **`radialGradient` 的 `center`/`radius` 语义想当然**。不传时它们分别默认为 `Offset.Unspecified` 与 `Float.POSITIVE_INFINITY`，真正创建 Shader 时会回退为「绘制区域的中心」与「区域最小边的一半」（本仓库基线 `ui-graphics` 的行为）；想要自定义圆心或半径（比如只让左上角一圈发光）时必须显式传，否则得到的是居中默认渐变。
 3. **每帧无意创建 Brush**。先判断 Brush 是否真的必须随动画变化；静态 Brush 可以用 `remember` 或 `drawWithCache`，动态 Brush 则会随 State 变化重建，应减少其他分配并通过性能工具确认成本。
 4. **把 `Brush` 当 `Paint` 用**。`drawRect` 的 `brush` 参数不能替代 `Paint` 的 `style`、`strokeWidth`；描边圆环仍需传 `style = Stroke(...)`，`brush` 只负责着色。
 5. **`sweepGradient` 首尾颜色不闭合**。颜色列表首尾色不同，扫描渐变出现明显接缝。让最后一个颜色等于第一个颜色（如红→绿→蓝→红）。

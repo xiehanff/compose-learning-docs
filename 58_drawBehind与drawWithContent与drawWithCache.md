@@ -18,6 +18,8 @@
 - `androidx.compose.ui.graphics`：`Brush`、`linearGradient`（第 60 章详解）、`Path`（第 59 章详解）
 - `androidx.compose.foundation`：`Canvas`（对照使用）
 
+> 官方参考：[androidx.compose.ui.draw（drawBehind / drawWithContent / drawWithCache）](https://developer.android.com/reference/kotlin/androidx/compose/ui/draw/package-summary)
+
 > 阅读前只需知道两个词，本章不展开它们的具体用法：
 >
 > - `Path`（第 59 章详解）：由线段与曲线拼成的矢量路径，用来描述任意形状；
@@ -102,7 +104,7 @@ fun GradientPanel() {
 1. 组合阶段：`CircularProgressRing(0.6f)` 进入组合，modifier 链完成测量，尺寸定为 120dp。
 2. 绘制阶段：系统按链顺序触发绘制。`drawBehind` 先执行，画灰色 360 度底环。
 3. `drawWithContent` 执行：先调 `drawContent()` 绘制内部 `Text`，再按 `sweepAngle = 216f` 画进度弧。
-4. `progress` 从 0.6f 变为 0.75f 时（比如网络加载推进），进度弧重绘，底环与文字不变的部分由 Compose 的绘制缓存优化。
+4. `progress` 从 0.6f 变为 0.75f 时（比如网络加载推进），读取了 `progress` 的 `drawWithContent` 重新执行，进度弧与 `drawContent()` 画出的内容一起重绘；`drawBehind` 的 lambda 没有读取 `progress`，不会因它变化而重新执行。
 5. `GradientPanel` 的构建块没有读取可变 State，因此首次绘制或尺寸等绘制环境变化时创建 `verticalGradient`，其他帧复用 Brush；如果构建块读取的 State 变化，缓存也会失效并重建。
 
 ## 6. Flutter / Dart 3 对照
@@ -132,7 +134,7 @@ Stack(
 
 ## 7. 常见错误
 
-1. **用 `Modifier.background` 做需要动态变化的绘制**。`background` 适合静态颜色，虽然能传 `Brush`，但它在动画场景下每次都要重建画刷，且不能参与进度计算。动态背景用 `drawBehind` + `Brush` 更合适。
+1. **用 `Modifier.background` 做需要动态变化的绘制**。`background` 适合静态颜色或静态 `Brush`；它的参数变化要走重组传入新值，开销高于绘制 modifier 只触发绘制失效，且参数里做不了 `sweepAngle = 360f * progress` 这类绘制期计算。动态背景用 `drawBehind` 更合适。
 2. **重计算放普通 draw 里不缓存**。`Path`、渐变 `Brush`（均见第 59、60 章）每帧新建，短时间大量分配对象引发卡顿。应放入 `drawWithCache`。
 3. **忘记 `drawContent()` 导致内容消失**。`drawWithContent` 里只画了装饰没调 `drawContent()`，子组件全部空白。排查这类 bug 先检查有没有调用它。
 4. **层级理解反了**。以为 `drawBehind` 写在链前面就画在最上层。记住：链前面的 modifier 绘制在**下层**。

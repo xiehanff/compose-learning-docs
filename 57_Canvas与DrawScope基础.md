@@ -14,14 +14,17 @@
 进阶篇不再局限于 compose_demo 项目，本章使用通用 Compose API。
 
 - `androidx.compose.foundation`：`Canvas`
-- `androidx.compose.ui.graphics.drawscope`：`DrawScope`、`drawLine`、`drawCircle`、`drawRect`、`drawRoundRect`、`drawArc`、`drawOval`
-- `androidx.compose.ui.graphics`：`Paint`、`StrokeCap`、`StrokeJoin`、`drawscope.Stroke`
+- `androidx.compose.ui.graphics.drawscope`：`DrawScope`、`Stroke`（描边样式）、`drawLine`、`drawCircle`、`drawRect`、`drawRoundRect`、`drawArc`、`drawOval`
+- `androidx.compose.ui.graphics`：`Color`、`StrokeCap`、`StrokeJoin`
 - `androidx.compose.ui.unit`：`dp`、`Density`（`toPx()`）
+
+> 官方参考：[Canvas](https://developer.android.com/reference/kotlin/androidx/compose/foundation/Canvas)、[DrawScope](https://developer.android.com/reference/kotlin/androidx/compose/ui/graphics/drawscope/DrawScope)
 
 ## 3. 项目源码片段
 
 画一个圆环进度底 + 网格线，覆盖本章大部分 API：
 
+<!-- compile decls -->
 ```kotlin
 @Composable
 fun RingAndGrid() {
@@ -73,7 +76,7 @@ fun RingAndGrid() {
 
 ## 4. 逐步解释
 
-1. **`Canvas` 只是一个壳**。`Canvas(modifier)` 本身不做任何事，它把 `DrawScope` 交给后面的 lambda。`DrawScope` 就是你的"画布上下文"，所有 `draw*` 函数都是它的扩展函数，所以只能在 lambda 内部调用。记住：`Canvas` 负责占位和分配尺寸，`DrawScope` 负责画。
+1. **`Canvas` 只是一个壳**。`Canvas(modifier)` 本身不做任何事，它把 `DrawScope` 交给后面的 lambda。`DrawScope` 就是你的"画布上下文"，所有 `draw*` 函数都是它的扩展函数，所以只能在 lambda 内部调用。记住：`Canvas` 负责占位和分配尺寸，`DrawScope` 负责画。由此带来两个常被忽略的事实：其一，**画多大不改变布局占位**——占位尺寸完全由 modifier 决定，lambda 里把圆画到边界外并不会撑大或缩小组件；其二，**画的内容不进入语义树**——无障碍服务（如 TalkBack）读不到你画了什么圆环网格，需要暴露语义时要在 modifier 上另外声明（第 80 章无障碍展开）。
 
 2. **坐标系：左上角是原点，单位是 px**。x 轴向右、y 轴向下，这与传统数学坐标系相反。`size` 是 `DrawScope` 提供的 `Size` 属性，等于 Canvas 的实际像素尺寸；`center` 是它的快捷方式。所有坐标、半径、宽度都是 px。记住：在 DrawScope 里你看到的一切数字都是 px，不是 dp。
 
@@ -90,7 +93,7 @@ fun RingAndGrid() {
 3. 依次执行 lambda：先画两条竖网格线、两条横网格线（依赖 `size` 计算位置）。
 4. 计算 `ringWidth = 12.dp.toPx()`，画 300 度的圆环描边；缺口留在 0 度附近。
 5. 画实心蓝圆，圆心 `center`、半径 `40.dp.toPx()`，覆盖在网格与圆环之上。
-6. 绘制结束，画布内容合成到界面上。之后任何重组（如窗口尺寸变化）都会重新走测量与绘制。
+6. 绘制结束，画布内容合成到界面上。之后窗口尺寸等变化会让布局失效、重新走测量与绘制；普通重组在布局未失效时不会重新测量（见第 22、46 章关于重组边界的讨论）。
 
 ## 6. Flutter / Dart 3 对照
 
@@ -129,13 +132,13 @@ class GridPainter extends CustomPainter {
 }
 ```
 
-本质区别有三点：第一，Flutter 把画笔封装成独立的 `ui.Paint` 对象，用 `..style = PaintingStyle.stroke` 链式配置，Compose 则把 `Paint` 参数直接内联在 `draw*` 函数的参数列表里；第二，Flutter 的 `drawArc` 角度用弧度，Compose 用角度（0 度在三点钟方向）；第三，Flutter 要求 `CustomPainter` 是独立类并实现 `shouldRepaint`，Compose 的 `Canvas` lambda 直接在组合里写，绘制代码与 UI 结构同处一处，改起来更顺手。另外注意 Flutter 的 `Canvas` 来自 `dart:ui`，默认单位同样是逻辑像素而非物理像素，这点与 Compose 的 px 语义需要区分——Compose 的 DrawScope 拿到的是 px。
+本质区别有三点：第一，Flutter 把画笔封装成独立的 `ui.Paint` 对象，用 `..style = PaintingStyle.stroke` 链式配置，Compose 则把 `Paint` 参数直接内联在 `draw*` 函数的参数列表里；这还带来一个行为差异——Flutter 复用同一个 `Paint` 时样式会跨调用残留，Compose 每次 draw 调用的 `style` 等参数独立、默认 `Fill`，无残留；第二，Flutter 的 `drawArc` 角度用弧度，Compose 用角度（0 度在三点钟方向）；第三，Flutter 要求 `CustomPainter` 是独立类并实现 `shouldRepaint` 协议来声明何时需要重绘，Compose 的 `Canvas` lambda 直接在组合里写，绘制代码与 UI 结构同处一处，改起来更顺手。另外注意 Flutter 的 `Canvas` 来自 `dart:ui`，默认单位同样是逻辑像素而非物理像素，这点与 Compose 的 px 语义需要区分——Compose 的 DrawScope 拿到的是 px。
 
 ## 7. 常见错误
 
 1. **把 dp 当 px 直接用**。`drawCircle(radius = 40f)` 本意是 40dp，在 2x 屏幕上实际只有 40px，看起来小一倍。必须 `40.dp.toPx()`。
 2. **忘记 `size` 属性，写死尺寸**。`Size(300f, 300f)` 在横屏、分屏下就画歪了。用 `size`、`center` 相对计算。
-3. **`Paint` 状态残留**。`drawArc` 传了 `Stroke` 后，下一个 `drawCircle` 忘了 `style = Fill`，圆也变成描边。每个 draw 调用都要显式声明想要的 `style`。
+3. **拿 Flutter 的「Paint 状态残留」套 Compose**。Flutter 里复用同一个 `Paint` 对象，上一次的 `style` 会残留到下一次调用；Compose 的 draw 函数每次调用独立接收 `style` 参数、默认 `Fill`，不存在跨调用残留。Compose 里真正常犯的错是反过来：想要描边却忘了传 `style = Stroke(...)`，结果得到实心形状。
 4. **在 `Canvas` 外调用 `draw*` 系列函数**。`drawCircle` 是 `DrawScope` 的扩展函数，脱离 lambda 无法调用，报"unresolved reference"。
 5. **`drawArc` 的 `useCenter` 用错**。画进度环写成 `useCenter = true`，得到的是扇形（从圆心辐射），视觉上完全不是圆环。
 

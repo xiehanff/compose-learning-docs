@@ -21,6 +21,8 @@
 - `androidx.compose.ui.text.LinkAnnotation`
 - `androidx.compose.ui.text.withLink`（`buildAnnotatedString` 的作用域函数，给一段文字挂链接）
 
+> 官方参考：[AnnotatedString](https://developer.android.com/reference/kotlin/androidx/compose/ui/text/AnnotatedString)、[Compose Foundation release notes（ClickableText 弃用与 LinkAnnotation）](https://developer.android.com/jetpack/androidx/releases/compose-foundation)
+
 ## 3. 项目源码片段
 
 场景：登录页的《用户协议》文案——「重要提示」红色加粗，旧版条款加删除线，「完整协议」可点击跳转。
@@ -58,7 +60,7 @@ fun RichTextDemo() {
 
 ## 4. 逐步解释
 
-`AnnotatedString` 由三部分组成：`text`（纯文本字符串）、`spanStyles`（字符级样式区间列表）、`paragraphStyles`（段落级样式区间列表）。后两者都是 `Range<T>` 列表，每个 Range 记录 `start`、`end` 偏移和 `item` 样式。所以 AnnotatedString 本质是「一个字符串 + 一堆带起止偏移的样式标注」，布局时按偏移切分文本块，再逐块应用样式。
+`AnnotatedString` 由三部分组成：`text`（纯文本字符串）、`spanStyles`（字符级样式区间列表）、`paragraphStyles`（段落级样式区间列表）。后两者都是 `Range<T>` 列表，每个 Range 记录 `start`、`end` 偏移和 `item` 样式。所以 AnnotatedString 本质是「一个字符串 + 一堆带起止偏移的样式标注」，布局时按偏移切分文本块，再逐块应用样式。再精确一点：链接这类非样式标注统一挂在 `annotations` 列表里，`spanStyles`/`paragraphStyles` 可以看作其中样式类标注的只读视图——按「三部分」理解对写代码完全够用，这里只防止你以为样式与链接是两套体系。
 
 `buildAnnotatedString` 是它的构建器 DSL：`append` 追加文字，`withStyle` 打开一个样式作用域。要点是 withStyle 是「lambda 作用域」——块内 append 的文字才带该样式，块一退出样式立即结束，不会串到后面的文字。这比手写 Range 的 start/end 安全得多。
 
@@ -129,7 +131,7 @@ Text.rich(
 
 1. `text`（纯文本）、`spanStyles`（字符级样式区间）、`paragraphStyles`（段落级样式区间）。
 2. 只作用于块内 append 的文字；`withStyle` 返回即自动结束，不会延续到后面的 append。
-3. 在 `buildAnnotatedString` 中为目标片段包上 `withLink(LinkAnnotation.Url(...)) { ... }`，然后交给 `Text` 渲染：`LinkAnnotation.Url` 的点击由 `Text` 自动处理（默认走 `LocalUriHandler`）。需要自己接管点击（弹确认框、自定义路由）时，再用 `LinkAnnotation.Clickable`（`Text` 同样会自动回调）。`ClickableText` 已被弃用，新代码不要再使用。
+3. 在 `buildAnnotatedString` 中为目标片段包上 `withLink(LinkAnnotation.Url(...)) { ... }`，然后交给 `Text` 渲染：`LinkAnnotation.Url` 的点击由 `Text` 自动处理（默认走 `LocalUriHandler`）。需要自己接管点击（弹确认框、自定义路由）时，再用 `LinkAnnotation.Clickable`（`Text` 同样会自动回调）。旧的 `ClickableText` 自 Compose Foundation 1.7 起标记弃用（在本仓库 BOM 2026.06.00 基线中已是弃用 API，官方建议迁移到 `Text` + `LinkAnnotation`），新代码不要再使用。
 4. `SpanStyle` 控制字符级样式（字体、字号、颜色、背景、装饰线）；`ParagraphStyle` 控制段落级样式（对齐、行高、缩进）。
 
 ## 9. 本章总结

@@ -20,6 +20,8 @@
 - `androidx.compose.ui.layout.Measurable`（含 Intrinsic 系列方法）
 - `androidx.compose.ui.layout.MeasurePolicy`
 
+> 官方参考：[Constraints](https://developer.android.com/reference/kotlin/androidx/compose/ui/unit/Constraints)、[MeasurePolicy](https://developer.android.com/reference/kotlin/androidx/compose/ui/layout/MeasurePolicy)
+
 ## 3. 项目源码片段
 
 场景一：面板宽度小于 600dp 时竖排，否则横排——用 BoxWithConstraints 在组合阶段做响应式决策。
@@ -66,15 +68,15 @@ Layout(content = { Child() }) { measurables, constraints ->
 
 ## 4. 逐步解释
 
-`Constraints` 是布局阶段父级传给子级的「允许范围」，四要素：`minWidth`、`maxWidth`、`minHeight`、`maxHeight`。子项测量时必须返回一个落在该范围内的尺寸，越界会被强制夹取。
+`Constraints` 是布局阶段父级传给子级的「允许范围」，四要素：`minWidth`、`maxWidth`、`minHeight`、`maxHeight`。布局协议要求子项最终声明的尺寸落在这个范围内——内置组件都会遵守（内部用 constrain 系列自行夹取）；自定义布局返回越界尺寸不会被自动纠正，只会让上层得到不可预期的布局结果，所以要自觉用 `constrainWidth`/`constrainHeight` 夹取。
 
-常用构造：`Constraints.fixed(width, height)`（min == max，即「必须这么大」）；`Constraints.finite` 相关工厂（比如限定最大宽高）；`Constraints.Infinity` 是常量 `Int.MAX_VALUE`，表示「不限」。注意父级给子级无限约束时，子项若自身内容有限一般没问题，但子项向孙子传递时要注意别把 Infinity 直接当具体值用。
+常用构造：`Constraints.fixed(width, height)`（min == max，即「必须这么大」）；`Constraints(minWidth, maxWidth, minHeight, maxHeight)` 顶层工厂直接构造（要求 min ≤ max，违反会抛异常）；想放松成「可以更小」就 `copy(minWidth = 0, minHeight = 0)`。`Constraints.Infinity` 是常量 `Int.MAX_VALUE`，`maxWidth == Constraints.Infinity` 表示宽度无界（可滚动容器给子项的典型约束）。注意父级给子级无限约束时，子项若自身内容有限一般没问题，但子项向孙子传递时要注意别把 Infinity 直接当具体值参与计算。
 
 冲突处理：当期望值超出约束范围（比如想 300 但最大只有 240），用 `coerceIn(min, max)` 夹取，或者用 `constraints.constrainWidth(value)` / `constraints.constrain(IntSize)` 直接得到夹取后的结果。约束本身不会「报错」，只会让你拿到被压缩的值，所以决策逻辑里要处理这种压缩。
 
 `BoxWithConstraints` 与普通 Box 的区别：它在**组合阶段**就能读到 `maxWidth`/`maxHeight`/`minWidth` 等约束值（单位是 Dp），可以直接用于 if 分支、remember 计算。注意它读的是约束而非测量结果——它在组合阶段做响应式决策，适合「宽了就横排、窄了就竖排」这种分支，但拿不到精确的像素测量值。
 
-固有尺寸测量（Intrinsic）：`measurable.minIntrinsicWidth(height)`、`maxIntrinsicWidth`、`minIntrinsicHeight` 等，允许父级在真正测量子项**之前**先「估算」子项在给定尺寸下至少/至多需要多大。典型场景是「父尺寸要包裹子内容，但子内容又依赖父约束」的两难（比如宽度 wrap 的 Column 里放一个高度无限的文本）。代价是 Intrinsic 测量要额外跑一遍测量逻辑，性能差，能避免就避免。
+固有尺寸测量（Intrinsic）：`measurable.minIntrinsicWidth(height)`、`maxIntrinsicWidth`、`minIntrinsicHeight` 等，允许父级在真正测量子项**之前**先「估算」子项在给定尺寸下至少/至多需要多大。它只在被父级询问时才会发生：最常见的触发方是 `Modifier.width(IntrinsicSize.Min)` / `height(IntrinsicSize.Max)` 这类修饰符，以及自定义 `MeasurePolicy` 时覆写 `minIntrinsicWidth` 等四个方法。典型场景是「父尺寸要包裹子内容，但子内容又依赖父约束」的两难（比如宽度 wrap 的 Column 里放一个高度无限的文本）。代价是：`MeasurePolicy` 不覆写时的默认实现会用估算宽度构造约束、把子项完整 measure 一遍再取结果尺寸（本仓库基线 Compose UI 1.11.3 构件中的行为），等于把测量逻辑额外跑一遍；第 62 章「同一 Measurable 只能测一次」的限制下，「先估再测」的合法途径就是这类 Intrinsic 查询。总之 Intrinsic 性能差，能避免就避免。
 
 记住：**约束是父给子的边界，夹取是默认行为；Intrinsic 是测量前的估算，贵，慎用。**
 
@@ -102,13 +104,13 @@ LayoutBuilder(
 )
 ```
 
-本质区别：Flutter 的 `BoxConstraints` 带 tight / loose 语义——tight 约束（min == max）意味着「只能这么大」，loose 约束（min 为 0）意味着「可以小」。Compose 的 Constraints 没有 tight/loose 这对术语，统一用 min/max 表达，`Constraints.fixed` 就是「min == max」的固定尺寸，语义上更直观、少一层概念。另外 Flutter 的 RenderObject 有 `computeMinIntrinsicWidth` 等对应方法，但日常几乎不用；Compose 的 Intrinsic 在自定义布局里更常见。
+本质区别：Flutter 的 `BoxConstraints` 带 tight / loose 语义——tight 约束（min == max）意味着「只能这么大」，loose 约束（min 为 0）意味着「可以小」。Compose 的 Constraints 统一用 min/max 四值表达，没有把 tight/loose 做成一对专门术语（需要判定时另有 `hasFixedWidth`（min == max）这类只读属性；`Constraints.fixed` 构造的正是 min == max 的固定约束），少一层概念。另外 Flutter 的 RenderObject 有 `computeMinIntrinsicWidth` 等对应方法，但日常几乎不用；Compose 的 Intrinsic 在自定义布局里更常见。
 
 记住：**Compose 的约束只有 min/max，没有 tight/loose 的概念包袱。**
 
 ## 7. 常见错误
 
-1. 给子项传了自己都满足不了的约束：比如 min > max、负值、或者把 Infinity 直接传给 `Constraints.fixed`，测量结果会异常或抛错。
+1. 给子项构造非法约束：`Constraints(...)` 与 `copy` 都要求 min ≤ max 且非负，违反会直接抛异常；而把 `Constraints.Infinity` 当普通值传给 `Constraints.fixed` 不会立刻报错，只是造出 min == max == 无限大的荒谬约束，布局结果不可预期。
 2. 只处理 maxWidth 忽略 minWidth：约束是 min/max 成对的，父级给固定尺寸（min == max）时，忽略 min 会导致子项尺寸算错。
 3. 在测量阶段调用组合函数：测量阶段不允许发起组合，会直接报错；组合只能在组合阶段做。
 4. 滥用 Intrinsic：每次布局 Intrinsic 都要额外跑一遍测量，嵌套使用会成倍放大开销，卡顿的常见来源。
@@ -124,7 +126,7 @@ LayoutBuilder(
 
 1. `minWidth`、`maxWidth`、`minHeight`、`maxHeight`。
 2. 组合阶段——它在组合时就能读到 Dp 单位的约束值，用于响应式分支，而不是在测量阶段。
-3. 父级需要在真正测量子项之前估算其尺寸（如 wrap 内容且子项依赖约束的两难场景）时使用；代价是每次要额外跑一遍测量，性能差，应尽量少用。
+3. 父级需要在真正测量子项之前估算其尺寸时使用，常见触发方是 `Modifier.width/height(IntrinsicSize.Min/Max)` 或父级覆写 MeasurePolicy 的 Intrinsic 方法（如 wrap 内容且子项依赖约束的两难场景）；代价是默认实现要把测量逻辑额外跑一遍，性能差，应尽量少用。
 
 ## 9. 本章总结
 
