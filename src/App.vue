@@ -15,8 +15,8 @@ import 'highlight.js/styles/github.css'
 ;[['bash', bash], ['kotlin', kotlin], ['markdown', markdown], ['text', plaintext], ['powershell', powershell], ['toml', toml], ['xml', xml]].forEach(([name, language]) => hljs.registerLanguage(name, language))
 
 const files = import.meta.glob('../*.md', { eager: true, query: '?raw', import: 'default' })
-// README.md 面向维护者（片段标记、验证命令），不上站；站点只展示章节正文
-const HIDDEN_FILES = new Set(['README.md'])
+// 只上站读者向章节；维护者文档（README/AGENTS/审计报告）不上站
+const HIDDEN_FILES = new Set(['README.md', 'AGENTS.md', 'docs-expansion-audit.md', 'docs-expansion-final-report.md', 'docs-expansion-progress.md'])
 const HOME_FILE = '00_完整学习规划.md'
 const docs = Object.entries(files)
   .map(([path, content]) => {
@@ -81,7 +81,6 @@ const groups = computed(() => {
     { title: '开始学习', test: (n) => n === 0 },
     { title: '基础篇', test: (n) => n >= 1 && n <= 45 },
     { title: '进阶篇', test: (n) => n >= 46 && n <= 80 },
-    { title: '其他文档', test: (n) => n > 80 },
   ]
   return sections.map((section) => ({ ...section, docs: filteredDocs.value.filter((doc) => section.test(doc.number)) })).filter((section) => section.docs.length)
 })

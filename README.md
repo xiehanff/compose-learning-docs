@@ -226,8 +226,8 @@ timeout 120 npm run build   # 产出 dist/，自检渲染结果
 ```
 
 - 站点代码：`index.html`、`vite.config.js`、`src/App.vue`（Markdown 渲染、目录分组、上下章节导航、搜索）、`src/style.css`（GitBook 风格设计令牌，主题色 `--accent:#fe551b`）、`public/fonts/`（Cascadia Next SC、Google Sans Mono，参考 myblog 的排版方案）。
-- **只有根目录 `*.md` 会上站**；页面标题取文件内第一个一级标题，侧边目录按文件名数字前缀分组（`0` 开始学习、`1—45` 基础篇、`46—80` 进阶篇、其余归入其他文档）。首页固定为 `00_完整学习规划.md`。
-- **`README.md` 不上站**（`src/App.vue` 的 `HIDDEN_FILES`）：它是维护者文档，读者入口是站内规划页。面向读者的内容写进章节，面向维护者的构建/校验/部署说明写在这里。
+- **只有根目录 `*.md` 会上站**；页面标题取文件内第一个一级标题，侧边目录按文件名数字前缀分组（`0` 开始学习、`1—45` 基础篇、`46—80` 进阶篇）。数字前缀不在这些区间的文件不上站。
+- **维护者文档不上站**（`src/App.vue` 的 `HIDDEN_FILES`）：`README.md`、`AGENTS.md`、`docs-expansion-*.md` 审计报告。README 只服务 agent，读者入口是站内规划页。面向读者的内容写进章节，面向维护者的构建/校验/部署说明写在这里。
 - 章节间跳转直接写相对 `.md` 链接，渲染时会改写成站内路由；外部链接原样保留。
 - Markdown 渲染开启 `html: true`、代码高亮、标题锚点，并支持 GitHub 风格提示框（`> [!NOTE]` / `TIP` / `IMPORTANT` / `WARNING` / `CAUTION`）。新增代码块语言需在 `src/App.vue` 注册对应 `highlight.js/lib/languages/*`。
 - 部署：`.github/workflows/pages.yml` 在 push `main` 或手动触发时执行 `npm ci && npm run build` 并发布 `dist/`；子路径由 `vite.config.js` 决定（CI 下为 `/compose-learning-docs/`，本地为 `/`）。
