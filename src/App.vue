@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import MarkdownIt from 'markdown-it'
 import markdownItAnchor from 'markdown-it-anchor'
 import hljs from 'highlight.js/lib/core'
@@ -68,7 +68,7 @@ md.renderer.rules.link_open = (tokens, idx, options, env, self) => {
   return defaultLinkOpen(tokens, idx, options, env, self)
 }
 const query = ref('')
-const activeId = ref(location.hash.slice(1))
+const activeId = ref(decodeURIComponent(location.hash.slice(1)))
 const menuOpen = ref(false)
 const active = computed(() => docs.find((doc) => doc.id === activeId.value) || docs[0])
 const homeDoc = docs[0]
@@ -92,7 +92,15 @@ function select(doc) {
   menuOpen.value = false
   window.scrollTo(0, 0)
 }
-watch(() => location.hash, () => { activeId.value = decodeURIComponent(location.hash.slice(1)) })
+// hash 不是响应式的，必须监听 hashchange：正文里的章节链接、浏览器前进后退都走这里
+function syncFromHash() {
+  const id = decodeURIComponent(location.hash.slice(1))
+  const target = !id ? docs[0].id : docs.some((doc) => doc.id === id) ? id : null
+  if (!target || target === activeId.value) return
+  activeId.value = target
+  window.scrollTo(0, 0)
+}
+window.addEventListener('hashchange', syncFromHash)
 window.addEventListener('keydown', (event) => {
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
     event.preventDefault()
