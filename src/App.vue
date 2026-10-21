@@ -63,6 +63,9 @@ const query = ref('')
 const activeId = ref(location.hash.slice(1) || 'README.md')
 const menuOpen = ref(false)
 const active = computed(() => docs.find((doc) => doc.id === activeId.value) || docs.find((doc) => doc.id === 'README.md') || docs[0])
+const currentIndex = computed(() => docs.findIndex((doc) => doc.id === active.value?.id))
+const previousDoc = computed(() => currentIndex.value > 0 ? docs[currentIndex.value - 1] : null)
+const nextDoc = computed(() => currentIndex.value >= 0 && currentIndex.value < docs.length - 1 ? docs[currentIndex.value + 1] : null)
 const filteredDocs = computed(() => docs.filter((doc) => !query.value || `${doc.title} ${doc.file}`.toLowerCase().includes(query.value.toLowerCase())))
 const groups = computed(() => {
   const sections = [
@@ -110,6 +113,17 @@ window.addEventListener('keydown', (event) => {
       <div class="article-wrap">
         <div class="article-meta"><span>JETPACK COMPOSE</span><a :href="`https://github.com/xiehanff/compose-learning-docs/blob/main/${encodeURIComponent(active.file)}`" target="_blank" rel="noreferrer">编辑此页 ↗</a></div>
         <article class="markdown-body" v-html="rendered" />
+        <nav v-if="previousDoc || nextDoc" class="article-pagination" aria-label="章节导航">
+          <button v-if="previousDoc" class="pagination-card pagination-previous" @click="select(previousDoc)">
+            <span class="pagination-label">← 上一章节</span>
+            <span class="pagination-title">{{ previousDoc.title }}</span>
+          </button>
+          <span v-else />
+          <button v-if="nextDoc" class="pagination-card pagination-next" @click="select(nextDoc)">
+            <span class="pagination-label">下一章节 →</span>
+            <span class="pagination-title">{{ nextDoc.title }}</span>
+          </button>
+        </nav>
         <footer class="article-footer"><span>本文档面向 Android Jetpack Compose</span><a href="https://github.com/xiehanff/compose-learning-docs">GitHub ↗</a></footer>
       </div>
     </main>
