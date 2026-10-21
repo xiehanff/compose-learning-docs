@@ -1,5 +1,7 @@
 # Compose 项目完整学习文档（预备篇 + 第 1—80 章）
 
+> [在线阅读（GitHub Pages）](https://xiehanff.github.io/compose-learning-docs/) · 页面采用 GitBook 风格目录，内容由本仓库 Markdown 构建。
+
 > 本仓库的版本基线、平台边界、证据等级和审校规则见 [文档基线与审校规范](文档基线与审校规范.md)。正文中的 API 状态和版本结论都应以该文件及 `snippets/gradle/libs.versions.toml` 为准。
 
 - 预备篇：面向真正零基础读者，完成环境准备、第一次构建、Gradle 基础与构建报错自救。

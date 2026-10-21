@@ -13,6 +13,10 @@ captures/
 .externalNativeBuild/
 .cxx/
 
+# 静态站点构建产物与依赖
+node_modules/
+dist/
+
 # 编辑器与系统
 .DS_Store
 .idea/
