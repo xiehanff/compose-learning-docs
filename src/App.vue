@@ -84,6 +84,8 @@ const groups = computed(() => {
   ]
   return sections.map((section) => ({ ...section, docs: filteredDocs.value.filter((doc) => section.test(doc.number)) })).filter((section) => section.docs.length)
 })
+// 逆序展示的固定条目：挂在目录末尾，方便读者从规划页直达任务书/规范
+const pinnedDocs = computed(() => ['阶段项目_文章列表与详情.md', '文档基线与审校规范.md'].map((file) => filteredDocs.value.find((doc) => doc.file === file)).filter(Boolean))
 const rendered = computed(() => md.render(active.value?.content || ''))
 function select(doc) {
   activeId.value = doc.id
@@ -121,6 +123,10 @@ window.addEventListener('keydown', (event) => {
         <section v-for="group in groups" :key="group.title" class="nav-group">
           <h2>{{ group.title }}</h2>
           <button v-for="doc in group.docs" :key="doc.id" class="nav-item" :class="{ active: active.id === doc.id }" @click="select(doc)">{{ doc.title }}</button>
+        </section>
+        <section v-if="pinnedDocs.length" class="nav-group">
+          <h2>附录</h2>
+          <button v-for="doc in pinnedDocs" :key="doc.id" class="nav-item" :class="{ active: active.id === doc.id }" @click="select(doc)">{{ doc.title }}</button>
         </section>
       </nav>
       <div class="sidebar-foot">学习文档 · 持续更新<br /><a href="https://github.com/xiehanff/compose-learning-docs">在 GitHub 上查看 ↗</a></div>
