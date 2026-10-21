@@ -95,7 +95,7 @@ window.addEventListener('keydown', (event) => {
 <template>
   <header class="topbar">
     <button class="menu-toggle" aria-label="切换目录" @click="menuOpen = !menuOpen">☰</button>
-    <a class="brand" href="#README.md" @click.prevent="select(docs.find(d => d.id === 'README.md') || docs[0])"><span class="brand-mark">C</span><span>Compose 学习文档</span></a>
+    <a class="brand" href="#README.md" @click.prevent="select(docs.find(d => d.id === 'README.md') || docs[0])"><span class="brand-mark">H</span><span>Hax Compose101</span></a>
     <div class="top-actions"><span class="edition">中文教程 · Android Jetpack Compose</span><a href="https://github.com/xiehanff/compose-learning-docs" target="_blank" rel="noreferrer" aria-label="GitHub">GitHub ↗</a></div>
   </header>
   <div class="shell">
