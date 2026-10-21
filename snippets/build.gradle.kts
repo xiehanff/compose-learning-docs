@@ -67,4 +67,13 @@ dependencies {
     implementation(libs.kotlinx.serialization.core)
     // 第 79 章 WindowSizeClass 响应式示例；断点常量（WIDTH_DP_*_LOWER_BOUND）来自其传递的 androidx.window:window-core。
     implementation(libs.androidx.material3.adaptive)
+    // 实践篇（81—87 章）：ymq-mall-json-server 教学链路。
+    implementation(libs.retrofit)
+    implementation(libs.retrofit.kotlinx.serialization)
+    implementation(libs.okhttp)
+    implementation(libs.okhttp.logging)
+    implementation(libs.coil.compose)
+    implementation(libs.androidx.navigation.compose)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.kotlinx.serialization.json)
 }

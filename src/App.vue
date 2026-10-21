@@ -81,11 +81,12 @@ const groups = computed(() => {
     { title: '开始学习', test: (n) => n === 0 },
     { title: '基础篇', test: (n) => n >= 1 && n <= 45 },
     { title: '进阶篇', test: (n) => n >= 46 && n <= 80 },
+    { title: '实践篇', test: (n) => n >= 81 && n <= 90 },
   ]
   return sections.map((section) => ({ ...section, docs: filteredDocs.value.filter((doc) => section.test(doc.number)) })).filter((section) => section.docs.length)
 })
 // 逆序展示的固定条目：挂在目录末尾，方便读者从规划页直达任务书/规范
-const pinnedDocs = computed(() => ['阶段项目_文章列表与详情.md', '文档基线与审校规范.md'].map((file) => filteredDocs.value.find((doc) => doc.file === file)).filter(Boolean))
+const pinnedDocs = computed(() => ['阶段项目_电商商城.md', '文档基线与审校规范.md'].map((file) => filteredDocs.value.find((doc) => doc.file === file)).filter(Boolean))
 const rendered = computed(() => md.render(active.value?.content || ''))
 function select(doc) {
   activeId.value = doc.id

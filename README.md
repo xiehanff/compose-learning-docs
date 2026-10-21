@@ -1,4 +1,4 @@
-# Compose 项目完整学习文档（预备篇 + 第 1—80 章）
+# Compose 项目完整学习文档（预备篇 + 第 1—87 章）
 
 > [在线阅读（GitHub Pages）](https://xiehanff.github.io/compose-learning-docs/) · 页面采用 GitBook 风格目录，内容由本仓库 Markdown 构建。
 >
@@ -9,6 +9,7 @@
 - 预备篇：面向真正零基础读者，完成环境准备、第一次构建、Gradle 基础与构建报错自救。
 - 第 1—45 章：根据 `compose_demo.zip` 源码整理，覆盖 Compose UI 从入门到中级的基础。
 - 第 46—80 章：进阶篇，覆盖重组引擎、动画、自定义绘制/布局/手势、架构、性能、测试与发布；并新增 Navigation 3 专题（第 71A 章），按仓库版本基线介绍其 Compose 导航模型；不构成对所有项目的无条件迁移建议。
+- 第 81—87 章：实践篇，以 [ymq-mall-json-server](https://gitee.com/campos/ymq-mall-json-server) 为 mock 后端，用真实 HTTP 接口完成小电商（首页/商品详情/购物车/个人主页）的最小闭环。
 
 零基础读者必须先完成预备篇，再按编号阅读。已有 Android/Gradle 经验的读者可以从第 1 章开始。
 
@@ -23,8 +24,9 @@
 - `08A`：FlowRow 流式布局（基础篇补充章节，接在第 8 章后）。
 - `26A`、`26B`：输入框与选择控件（基础篇补充章节，接在第 26 章后）。
 - `71A`：Navigation 3 与 NavDisplay（进阶篇补充章节，接在第 71 章后）。
+- `81—87`：实践篇，小电商最小闭环；mock 服务见 `practice/mock-server/README.md`。
 - `99_源码文件索引.md`：从源码文件反查章节。
-- `阶段项目_文章列表与详情.md`：第 80 章后的全课综合验收任务书（仓库不含对应源码工程）。
+- `阶段项目_电商商城.md`：全课综合验收任务书（电商商城独立验收版，仓库不含对应源码工程）。
 - `文档基线与审校规范.md`：版本、来源、平台边界与验证范围。
 
 ## 平台和内容边界
@@ -132,7 +134,19 @@
 - [第 78 章：边缘到边缘与 Window Insets](78_边缘到边缘与WindowInsets.md)
 - [第 79 章：响应式布局与 WindowSizeClass](79_响应式布局与WindowSizeClass.md)
 - [第 80 章：无障碍、Baseline Profile 与发布质量](80_无障碍与BaselineProfile与发布质量.md)
-- [阶段项目：文章列表与详情（任务书）](阶段项目_文章列表与详情.md)
+- [阶段项目：电商商城（任务书）](阶段项目_电商商城.md)
+
+## 实践篇（第 81—87 章）
+
+> 以 [ymq-mall-json-server](https://gitee.com/campos/ymq-mall-json-server) 为 mock 后端，用真实 HTTP 接口完成小电商主要页面的最小闭环；启动说明见 [practice/mock-server/README.md](practice/mock-server/README.md)。
+
+- [第 81 章：实践篇总览：用真实接口完成一个小电商](81_实践篇总览与最小闭环.md)
+- [第 82 章：网络层：Retrofit、kotlinx.serialization 与统一响应壳](82_网络层Retrofit与统一响应壳.md)
+- [第 83 章：电商首页：分类、轮播与分页商品流](83_电商首页分类轮播与分页商品流.md)
+- [第 84 章：商品详情：SKU 选择与评论分页](84_商品详情SKU选择与评论分页.md)
+- [第 85 章：购物车：分组列表与三态处理](85_购物车分组列表与三态处理.md)
+- [第 86 章：个人主页：地址与客服](86_个人主页地址与客服.md)
+- [第 87 章：实践整合与验收清单](87_实践整合与验收清单.md)
 
 ## 代码示例编译校验
 
@@ -175,7 +189,9 @@ val scale by animateFloatAsState(if (liked) 1.2f else 1f)
 要求：片段自包含（不引用 `ComponentRegistry`、`DemoTheme`、`DemoApp` 这类项目专属
 符号）；`snippets/src/main/kotlin/support/SnippetsSupport.kt` 里提供了设计稿单位
 `.px` / `.pxSp()`（内容照抄项目真实的 `ui/adapter/Px.kt`，保证编译校验用的单位语义
-和章节描述一致）与第 71A 章的 Nav3 路由 key。片段不必写 `import`，生成文件的固定
+和章节描述一致）与第 71A 章的 Nav3 路由 key；第 81—87 章的商城网络层
+（DTO/MallApi/NetworkClient/MallRepo，与第 82 章正文同构）在
+`snippets/src/main/kotlin/support/MallSupport.kt`，实践篇片段直接 import 它编译。片段不必写 `import`，生成文件的固定
 import 头已覆盖常用 Compose 包（需要新包时改 `tools/extract_snippets.py` 的
 `IMPORT_HEADER`）；**片段也可以自己写 `import`**，生成时会自动提到文件顶层。
 

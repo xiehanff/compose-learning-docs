@@ -31,9 +31,12 @@ cd snippets && ./gradlew --no-daemon compileDebugKotlin -PsnippetsStrictWarnings
 
 ## 目录速览
 
-- 根目录 `*.md`：章节正文（00—80，含 08A/26A/26B/71A）、规划、基线规范、阶段项目任务书
+- 根目录 `*.md`：章节正文（00—87，含 08A/26A/26B/71A）、规划、基线规范、阶段项目任务书
+- `practice/mock-server/README.md`：实践篇 mock 服务（ymq-mall-json-server）的启动说明与接口速览
 - `tools/extract_snippets.py`：从章节 Markdown 抽取带标记的 Kotlin 片段
-- `snippets/`：片段编译工程（compileSdk 36；依赖见 `snippets/gradle/libs.versions.toml`；Material 3 Adaptive 不在 BOM 内，需显式版本）
+- `snippets/`：片段编译工程（compileSdk 36；依赖见 `snippets/gradle/libs.versions.toml`；Material 3 Adaptive 不在 BOM 内，需显式版本；实践篇网络/图片/导航依赖同见该文件）
+- `snippets/src/main/kotlin/support/SnippetsSupport.kt`：`.px`/`.pxSp()` 与 Nav3 路由 key 支撑
+- `snippets/src/main/kotlin/support/MallSupport.kt`：实践篇商城网络层支撑（DTO/MallApi/NetworkClient/MallRepo，与第 82 章正文同构），81—87 章片段 import 它编译
 - `.github/workflows/snippet-compile.yml`：CI 执行同样的抽取与编译校验
 - `src/`、`index.html`、`vite.config.js`、`public/fonts/`：GitHub Pages 静态站点（见下节）
 
@@ -43,7 +46,7 @@ cd snippets && ./gradlew --no-daemon compileDebugKotlin -PsnippetsStrictWarnings
 
 ### 站点的取舍（改动前必须知道）
 
-- **只有根目录 `*.md` 会上站**（`import.meta.glob('../*.md')`）。标题取自文件内第一个一级标题，侧边目录按文件名数字前缀分组：`0` 开始学习、`1—45` 基础篇、`46—80` 进阶篇；数字前缀不在这些区间或无数字前缀的文件不上站。
+- **只有根目录 `*.md` 会上站**（`import.meta.glob('../*.md')`）。标题取自文件内第一个一级标题，侧边目录按文件名数字前缀分组：`0` 开始学习、`1—45` 基础篇、`46—80` 进阶篇、`81—90` 实践篇；数字前缀不在这些区间或无数字前缀的文件不上站。
 - **维护者文档不上站**：`src/App.vue` 的 `HIDDEN_FILES` 排除 `README.md`、`AGENTS.md` 和 `docs-expansion-*.md` 审计报告。README 只服务 agent（片段标记、验证命令、站点维护说明），因此**不要把面向读者的教学内容写进 README**，也不要把面向维护者的构建/校验说明写进章节正文。
 - 站点首页固定为 `00_完整学习规划.md`（`HOME_FILE`），README 里给读者的入口仍是这个规划页。
 - 章节之间跳转用相对 `.md` 链接即可，渲染时会改写成站内路由；指向仓库外部的链接原样保留。
