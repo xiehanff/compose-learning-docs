@@ -179,18 +179,18 @@
 | `Ch79_01.kt` | Ch79 | `79_响应式布局与WindowSizeClass.md:28` | decls | `import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2` |
 | `Ch79_02.kt` | Ch79 | `79_响应式布局与WindowSizeClass.md:119` | body | `BoxWithConstraints {` |
 | `Ch80_01.kt` | Ch80 | `80_无障碍与BaselineProfile与发布质量.md:29` | body | `// 有意义的图片：读屏会朗读 contentDescription` |
-| `Ch82_01.kt` | Ch82 | `82_网络层Retrofit与统一响应壳.md:35` | decls | `import kotlinx.serialization.SerialName` |
-| `Ch82_02.kt` | Ch82 | `82_网络层Retrofit与统一响应壳.md:171` | decls | `import kotlinx.coroutines.CancellationException` |
-| `Ch83_01.kt` | Ch83 | `83_电商首页分类轮播与分页商品流.md:33` | decls | `import androidx.lifecycle.ViewModel` |
-| `Ch83_02.kt` | Ch83 | `83_电商首页分类轮播与分页商品流.md:141` | decls | `import androidx.compose.foundation.pager.*` |
-| `Ch84_01.kt` | Ch84 | `84_商品详情SKU选择与评论分页.md:53` | decls | `import androidx.lifecycle.ViewModel` |
-| `Ch84_02.kt` | Ch84 | `84_商品详情SKU选择与评论分页.md:281` | decls | `import androidx.compose.foundation.pager.*` |
-| `Ch85_01.kt` | Ch85 | `85_购物车分组列表与三态处理.md:83` | decls | `import androidx.lifecycle.ViewModel` |
-| `Ch85_02.kt` | Ch85 | `85_购物车分组列表与三态处理.md:249` | decls | `import androidx.lifecycle.ViewModel` |
-| `Ch85_03.kt` | Ch85 | `85_购物车分组列表与三态处理.md:483` | decls | `import snippets.support.*` |
-| `Ch86_01.kt` | Ch86 | `86_个人主页地址与客服.md:41` | decls | `import androidx.lifecycle.ViewModel` |
-| `Ch86_02.kt` | Ch86 | `86_个人主页地址与客服.md:147` | decls | `import androidx.lifecycle.ViewModel` |
-| `Ch87_01.kt` | Ch87 | `87_实践整合与验收清单.md:124` | decls | `import androidx.lifecycle.ViewModel` |
-| `Ch87_02.kt` | Ch87 | `87_实践整合与验收清单.md:286` | decls | `import androidx.lifecycle.ViewModel` |
-| `Ch87_03.kt` | Ch87 | `87_实践整合与验收清单.md:364` | decls | `// ui/component/StateViews.kt：整页/区块通用的三态组件（只用 material3 主包，无需额外 import）` |
+| `Ch82_01.kt` | Ch82 | `82_网络层Retrofit与统一响应壳.md:147` | decls | `import kotlinx.serialization.SerialName` |
+| `Ch82_02.kt` | Ch82 | `82_网络层Retrofit与统一响应壳.md:354` | decls | `import kotlinx.coroutines.CancellationException` |
+| `Ch83_01.kt` | Ch83 | `83_电商首页分类轮播与分页商品流.md:87` | decls | `import androidx.lifecycle.ViewModel` |
+| `Ch83_02.kt` | Ch83 | `83_电商首页分类轮播与分页商品流.md:245` | decls | `import androidx.compose.foundation.pager.*` |
+| `Ch84_01.kt` | Ch84 | `84_商品详情SKU选择与评论分页.md:206` | decls | `import androidx.lifecycle.ViewModel` |
+| `Ch84_02.kt` | Ch84 | `84_商品详情SKU选择与评论分页.md:487` | decls | `import androidx.compose.foundation.pager.*` |
+| `Ch85_01.kt` | Ch85 | `85_购物车分组列表与三态处理.md:226` | decls | `import androidx.lifecycle.ViewModel` |
+| `Ch85_02.kt` | Ch85 | `85_购物车分组列表与三态处理.md:429` | decls | `import androidx.lifecycle.ViewModel` |
+| `Ch85_03.kt` | Ch85 | `85_购物车分组列表与三态处理.md:669` | decls | `import snippets.support.*` |
+| `Ch86_01.kt` | Ch86 | `86_个人主页地址与客服.md:215` | decls | `import androidx.lifecycle.ViewModel` |
+| `Ch86_02.kt` | Ch86 | `86_个人主页地址与客服.md:342` | decls | `import androidx.lifecycle.ViewModel` |
+| `Ch87_01.kt` | Ch87 | `87_实践整合与验收清单.md:221` | decls | `import androidx.lifecycle.ViewModel` |
+| `Ch87_02.kt` | Ch87 | `87_实践整合与验收清单.md:405` | decls | `import androidx.lifecycle.ViewModel` |
+| `Ch87_03.kt` | Ch87 | `87_实践整合与验收清单.md:494` | decls | `// ui/component/StateViews.kt：整页/区块通用的三态组件（只用 material3 主包，无需额外 import）` |
 

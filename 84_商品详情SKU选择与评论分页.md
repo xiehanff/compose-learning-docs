@@ -39,14 +39,167 @@ DTO 与 `MallRepo` 已在第 82 章就位。`SpuDetailDto` 是一个六块的嵌
 - `reviewInfo` 是概览：评论数、好评率，外加**一条**预览评论。它与 `comment/page` 第一页的数据是重叠关系，两边不要拼接。
 - `comment/page` 的分页壳与第 83 章商品流同款：`PageDto{list, total, hasMore}`，翻页只认 `hasMore`。
 - `SkuDto.specValueIds` 是「该 SKU 由哪些规格值组成」的 id 集合——匹配要用**集合语义**，契约不承诺数组顺序。
-- `SkuDto` **没有** `purchaseLimit` 字段：限购只存在于购物车条目（`CartItemDto.purchaseLimit`，第 85 章），详情侧的数量约束只有库存（见 3.2「数量边界只管『本次添加』」）。
+- `SkuDto` **没有** `purchaseLimit` 字段：限购只存在于购物车条目（`CartItemDto.purchaseLimit`，第 85 章），详情侧的数量约束只有库存（见 4.2「数量边界只管『本次添加』」）。
 - 价格字段全是字符串（`"49.90"`），划线价比较前必须数值化，规则与第 83 章 `ProductCard` 相同。
 
-## 3. 逐步实现
+## 3. 开工前，先翻一次车
 
-### 3.1 DetailViewModel：字段与加载方法
+详情页最核心也最容易写错的逻辑是 SKU 匹配：用户把每组规格各选一个值，你要在 `skuList` 里找到「由这些值组成的那个 SKU」——找到它才有价格、库存和 `skuId`，加购按钮才知道发什么参数。假设没读过这一章，凭直觉写，多半会长这样：
 
-详情页的形态是「一个大嵌套对象 + 三条独立请求」。ViewModel 不走第 68 章的 `StateFlow + sealed UiState`（那是状态要跨层共享时的写法），沿用第 83 章的取舍：页面私有状态用一组 `mutableStateOf` 字段、直连 `MallRepo`（第 82 章 3.4）、不设 Repository 接口、不引入 DI。每个字段对应页面一个可独立变化的区块，`private set` 保证外部只读。
+```kotlin
+// 伪代码：直觉版 SKU 匹配——把已选值按 Map 遍历顺序拼成 List，与 specValueIds 按下标逐位比较
+fun findMatchedSku(selectedSpecValues: Map<Long, Long>, skuList: List<SkuDto>): SkuDto? {
+    val selected = selectedSpecValues.values.toList()   // [11, 21]——顺序由遍历决定
+    return skuList.firstOrNull { sku ->
+        sku.specValueIds.size == selected.size &&
+            sku.specValueIds.zip(selected).all { (a, b) -> a == b }   // 下标 0 对 0、1 对 1
+    }
+}
+```
+
+**先预测 10 秒**：这个版本跑在 mock 上（2001—2005、2011 全是单规格组商品），会出什么事？
+
+答案是：什么事都没有。单规格组只有一个规格值，一个元素无所谓顺序，逐位比较恰好等于集合相等——**mock 测不出这个 bug**，这正是它最危险的地方。再预测多规格组商品（比如「规格 × 香型」两组）的表现：
+
+1. 用户在「规格」组选 11、「香型」组选 21，前端把 Map 的值拼成 `[11, 21]`；
+2. 后端组装 `specValueIds` 时按自己的 join 顺序给了 `[21, 11]`——这个组合真实存在、有库存；
+3. zip 逐位比较：11≠21、21≠11 → 不命中 → 页面提示「该组合暂无」。
+
+**明明选齐了存在的组合，却被告知无货。** Kotlin 的 `List ==` 与逐位比较都是顺序敏感的结构相等，而「每组选一个值」的语义里，值的组合是个**集合**——先选规格再选香型，与先选香型再选规格，选到的是同一个 SKU。修复只有一句：两边 `toSet()` 比集合相等，顺序从此无关（4.2 展开完整判定）。
+
+有人会退一步想：那我改用「包含判断」——已选的每个值都在候选里就算命中，总不依赖顺序了吧：
+
+```kotlin
+// 伪代码：包含判断——已选的每个值都在候选 specValueIds 里就算命中
+fun findMatchedSku2(selected: Set<Long>, skuList: List<SkuDto>): SkuDto? =
+    skuList.firstOrNull { sku -> selected.all { sku.specValueIds.contains(it) } }
+```
+
+**再猜一次**：已选 `{11, 21}`，候选 SKU 的 `specValueIds=[11, 21, 31]`（后端数据冗余或脏数据），会命中吗？
+
+会。包含判断只要求「已选的都在候选里」，不要求「候选的都被选了」——候选比已选**多**元素照样命中。集合相等不命中（`{11,21} ≠ {11,21,31}`）。在「已选齐、且每个 SKU 的 `specValueIds` 恰好每组一个值」的合法数据前提下，两者等价（长度相等时包含即相等）；数据不合法时，包含判断会误命中脏 SKU，集合相等宁可显示「该组合暂无」也不将错就错。这不是稻草人：ymq 版本用的正是包含判断（第 6 节对照细说）；两种判定在合法数据下结果一致，本章采用集合相等，取的是它对「候选比已选多」的组合不予命中的从严语义。
+
+两句口诀收束这两次翻车：**匹配比集合，不比顺序；比相等，不比包含**。带着它往下走，先从最小版本把页面跑起来，再一步步把匹配、评论分页、加购全部装进去。
+
+## 4. 逐步实现
+
+### 4.1 第一步：只跑通标题与价格
+
+和第 83 章一样，一切从最小可跑版本开始——只拉详情主对象，先把标题和价格弄上屏：
+
+```kotlin
+// 伪代码：最小版本——一个字段、一个方法，先把标题价格弄上屏
+class DetailViewModel : ViewModel() {
+    var basic by mutableStateOf<BasicInfoDto?>(null)
+        private set
+
+    fun loadDetail(spuId: Long) = viewModelScope.launch {
+        basic = MallRepo.loadProductDetail(spuId).basicInfo
+    }
+}
+```
+
+三行结构与第 83 章 4.1 完全同构：`by mutableStateOf` 让读了它的作用域自动失效重组（自动版 `update([id])` 的职责对应，第 83 章说过），`private set` 保证改状态的唯一入口是 ViewModel 方法，`launch` 发完就忘。`basicInfo` 的物料够铺半个页面：标题、副标题、价格与划线价、标签、积分、已售与配送信息；顶部轮播的 `imgsUrl` 也在里面——第 83 章的 `HomeBanner` 换个数据源就能横滑。
+
+**暴露问题**：底部「加入购物车」点了发什么？`addCart(skuId, quantity)` 要的是 **skuId**，而 `basicInfo` 里根本没有——它是 SPU 级信息，`price` 是展示价（起价），不代表用户最终买的那个规格。SKU 的 id、价格、库存、图全在 `detail.skuInfo.skuList` 里。要加购，先得让用户「选规格」，再拿选择结果去 `skuList` 里查——正好撞上第 3 节那两次翻车的地界。
+
+### 4.2 SKU：问卷、答案表与集合匹配
+
+`skuInfo` 是两组结构，各答一个问题：
+
+- **`specGroupList` 是「问什么」**：每组规格一张问卷——组 id、组名（「规格」「香型」）、候选值列表（每个值有 id 和名）。它驱动 UI：每组渲染一行 chip。
+- **`skuList` 是「答案表」**：每个 SKU 一行，`specValueIds` 记录「每组选了哪个值」（规格值 id 的集合），同行跟着这个组合的裁决——`id/name/imgUrl/price/stock`。选完之后的一切（价格预览、库存、加购参数）都从这一行查出来。
+
+动手前先把 4.1 的最小版升级到位——差量只有四处：
+
+1. **`basic: BasicInfoDto?` 换成 `detail: SpuDetailDto?`**：`loadDetail` 的赋值从 `.basicInfo` 改成整个响应对象，标题价格的展示改读 `detail?.basicInfo`；
+2. **新增两张派生表**：`val specGroups get() = detail?.skuInfo?.specGroupList.orEmpty()`（问卷）与 `val skuList get() = detail?.skuInfo?.skuList.orEmpty()`（答案表）——都是 `detail` 上的只读 getter，从 detail 现算、不另立状态字段：派生数据多一个字段，就多一份「详情换了忘更新」的同步负担；
+3. **新增两个状态**：`selectedSpecValues`（初始空 Map，怎么建模见下）与 `quantity`（初始 1）；
+4. **`selectSpecValue` 末尾加一行 clamp**：`if (quantity > maxQuantity) quantity = maxQuantity.coerceAtLeast(1)`——切换选择后若数量超过新上限，立即收紧（下面连续推演里 37→36 的实现就在这一行；`maxQuantity` 的定义见再往下的匹配一节）。
+
+**选择状态怎么建模？** 要记录「每组选了哪个值」：
+
+```kotlin
+// 伪代码：选择状态——Map<组id, 值id>，键即身份
+var selectedSpecValues by mutableStateOf(emptyMap<Long, Long>())
+    private set
+
+fun selectSpecValue(groupId: Long, valueId: Long) {
+    selectedSpecValues = if (selectedSpecValues[groupId] == valueId) {
+        selectedSpecValues - groupId               // 再点一次已选中的值 = 取消该组选择
+    } else {
+        selectedSpecValues + (groupId to valueId)  // 生成新 Map 再赋回
+    }
+    if (quantity > maxQuantity) quantity = maxQuantity.coerceAtLeast(1)   // 换 SKU 后收紧数量（clamp）
+}
+```
+
+两个设计点，各对应一次翻车：
+
+- **Map 的键即身份**。chip 的点击只知道「点了哪个值」，如果选择状态按规格组**下标**存成平行数组，就得先拿 `valueId` 反查它属于哪个组、该写进哪个下标——ymq 版本为此维护了一张反查表（第 6 节对照）。`Map<组id, 值id>` 让每组自带身份：反查表整个省掉，「已选了几组」就是 `size`，「哪组选了什么」不依赖下标对位——与匹配的集合语义严丝合缝。
+- **`+`/`-` 生成新 Map 赋回，不能原地改**。快照系统追踪的是 `mutableStateOf` 这个「盒子」的写——对盒子赋新值，读过的组合作用域才失效；若改存 `MutableMap` 并原地 `put`，盒子里的对象没换，快照层看不到任何写，选了 chip 页面纹丝不动。这是 Compose 的组合拳：**容器可变（状态对象），内容尽量不可变（值对象）**——想要「内容级」的细粒度通知，就得付「每次复制新集合」的代价，几个规格值的规模下完全值得。
+
+**匹配就是把第 3 节的翻车修正成两层判定：**
+
+```kotlin
+// 伪代码：matchedSku——第一层未选齐必为 null，第二层集合相等
+val matchedSku: SkuDto?
+    get() {
+        if (specGroups.isEmpty() || selectedSpecValues.size != specGroups.size) return null
+        val selected = selectedSpecValues.values.toSet()
+        return skuList.firstOrNull { it.specValueIds.toSet() == selected }
+    }
+
+// 数量上限：详情侧只有库存；限购（purchaseLimit）在购物车条目里，第 85 章再约束
+val maxQuantity get() = matchedSku?.stock ?: 1
+```
+
+**第一层：未选齐必为 null。** `selectedSpecValues.size != specGroups.size` 直接返回 null。Map 的键是规格组 id、每组只可能存一个值，size 就是「已选组数」；只要还有任何一组没选，就不存在合法 SKU。底部按钮的「请选择规格」禁用态、SKU 区不出现价格预览，都靠这一层。
+
+**第二层：集合相等。** 把已选的规格值 id 与候选 SKU 的 `specValueIds` 都转成 `Set` 再比较——开场的顺序坑与包含坑在这里同时堵上。以 2001（单规格组）为例：
+
+```text
+selectedSpecValues = { 组1id -> 11 }              已选集合 = { 11 }
+SkuDto(51011).specValueIds = [11]        toSet() = { 11 }   → 相等，命中
+SkuDto(51012).specValueIds = [12]        toSet() = { 12 }   → 不等，跳过
+```
+
+单规格组看不出顺序问题，因为只有一个元素。真实工程的多规格组才是重灾区——假设「规格 [11,12] × 香型 [21,22]」四个 SKU，后端组装 `specValueIds` 时按自己的 join 顺序给了 `[21, 11]`：
+
+```text
+已选：{ 规格 -> 11, 香型 -> 21 }                  已选集合 = { 11, 21 }
+SkuDto.specValueIds = [21, 11]           toSet() = { 11, 21 }   → 集合相等，命中
+若按 List 直接比较：[11, 21] == [21, 11]          → false，漏匹配
+```
+
+Kotlin 的 `List ==` 是结构相等：**长度相同且逐下标元素相同**才算相等，顺序敏感。所以按下标 zip、逐位对表、直接 `==` 三种写法，只要后端组装顺序与前端假设不一致就会落空，症状是「明明选了存在的组合却提示无货」。集合语义的适用条件要交代清楚：规格值 id 在商品内不重复（ymq 契约如此）；若后端允许同 id 跨组复用，就得先按组配对再比较。
+
+**联动是自动的，但作用域要说准。** `matchedSku` 是普通 getter、没有缓存：组合中每次读它，都会顺带读取 `selectedSpecValues`（以及 `detail`）。快照系统的规则是：**状态一变，本次组合里读过它的作用域失效重组**。所以选规格后，失效的是「读了 `selectedSpecValues` / `matchedSku` 的那些作用域」。在 4.6 的代码里，`DetailScreen` 自己就读了 `vm.matchedSku`（按钮文案与 enabled 都靠它），所以 DetailScreen 的作用域会重组；`SkuSection` 等子组件收到的参数若没变、类型又可跳过（第 46、47 章的稳定性与强跳过模式），就可以整体跳过。联动效果已经达成，但**「只重组 SKU 区」不是快照系统免费送的保证**——它取决于读取发生在哪个作用域、参数是否变化、编译器的跳过策略。想把失效范围收窄，就把读取下沉：比如让价格预览成为单独的小组件，只在它内部读 `matchedSku`。选齐后展示的价格用 `matchedSku.price`（精确到 SKU），基础信息区的 `basicInfo.price` 是 SPU 级展示价（通常是起价），两者职责不同、并不冲突。
+
+**一个连续推演（2001，mock 可复现）——每一步先猜页面会变成什么样，再看对照：**
+
+1. 先猜：刚进页面、什么都没选，SKU 区有什么？按钮什么文案？→ 对照：初始未选任何规格。SKU 区无价格预览、加购按钮「请选择规格」禁用、数量「＋」按不动（占位 1）。
+2. 点「24包整箱」（51011）：先猜预览区和按钮会怎么变？→ 预览出现 ¥49.90/库存 78，按钮变「加入购物车」，数量最多可加到 78。
+3. 数量加到 37。
+4. 切「12包尝鲜」（51012）：先猜数量 37 的下场？→ 预览变 ¥29.90/库存 36——37 超过新上限，`selectSpecValue` 立即把数量收紧为 36。这就是 clamp 的复现路径：**上限随 SKU 变小，数量跟着收紧**。
+5. 再点一次「12包尝鲜」：先猜是改选还是取消？→ 取消选择：预览隐藏、数量回 1、按钮回「请选择规格」禁用。
+
+推演全程，顶部 SPU 轮播图与基础信息区的 `¥49.90/箱` **不变**——那是 `basicInfo` 的 SPU 级内容；跟着 SKU 走的只有 SKU 预览区（价格/库存/规格名）与数量上限。还有一个数据边界：mock 里 51011/51012 的 `imgUrl` 是**同一个 URL**，切 SKU 看不到换图——图片联动的验收只能看「价格与库存文案变化」，不能承诺视觉换图；真实工程多 SKU 各自带图，才有换图效果。
+
+**数量边界只管「本次添加」。** `maxQuantity` 取 `matchedSku?.stock ?: 1`，它的适用范围与不适用范围都要交代：
+
+- **未选齐**：`matchedSku == null`，上限落在兜底的 1。推演第 1 步里数量的 1 是**占位**，不是「有效数量 1」——真正的拦截是加购按钮禁用，「＋」也按不动。
+- **选齐**：上限 = 该 SKU 库存。`incQuantity` 挡在上限；`selectSpecValue` 换 SKU 后若当前数量超过新库存，立即收紧。
+- **库存 0**：预览区显示「库存 0」、按钮「已售罄」、数量停在 1（占位）。mock 六个 SKU 库存全部大于 0，这个分支触发不到，属于防御性代码。
+- **库存 1**：数量停在 1，「＋」「－」都禁用。mock 同样没有库存 1 的 SKU，逻辑上由 `quantity < maxQuantity` 与 `quantity > 1` 两个条件自然覆盖。
+- **切到低库存 SKU**：见上面的连续推演，这是 mock 里唯一能实际复现「收紧」的路径。
+- **它不包含购物车已有数量，也不包含限购**：`quantity <= stock` 只约束**本次**添加；购物车里已有的同一 SKU 数量不在本页视野里。`SkuDto` 没有 `purchaseLimit` 字段——那是购物车条目（`CartItemDto.purchaseLimit`）才有的数据，详情页拿不到也不该编造；mock 的 `cart/add` 对已有条目**直接累加、没有任何超量拒绝**，不能指望服务端兜底。真实工程的完整校验要么让详情接口直接带出限购，要么加购前调校验接口（mock 里就有 `POST app-api/shop-product/spu/checkCartQuantity`，按 `stock - 已加数量` 返回可加余量）。第 85 章拿到 `purchaseLimit` 后，购物车步进器把单条上限夹到 `min(stock, purchaseLimit)`——「本次还能加多少 = min(库存, 限购) − 购物车已有」，要等购物车数据在场才算得清。
+
+**一个已知的教学简化**：ymq 版本进页面会用第一个有库存的 SKU 自动初始化选择（`firstInStockSku`），我们刻意从「未选」开始，让「选齐才可加购」的判定路径可见。mock 里 2003、2004、2005、2011 都是单规格值单 SKU，用户必须点一下唯一的 chip 才能加购——把它改成「单规格值自动选中」是很好的练习（提示：在 `loadDetail` 成功后判断 `specGroups.all { it.specValueList.size == 1 }`）。
+
+### 4.3 DetailViewModel：完整片段与阅读地图
+
+把 4.1 的最小版、4.2 的选择与匹配、评论分页、加购全部装进一个 ViewModel，就是本章第一个可编译片段。它沿用第 83 章的取舍：详情页是页面私有状态，不走第 68 章的 `StateFlow + sealed UiState`（那是状态要跨层共享时的写法），一组 `mutableStateOf` 字段、直连 `MallRepo`（第 82 章 3.4）、不设 Repository 接口、不引入 DI，每个字段对应页面一个可独立变化的区块，`private set` 保证外部只读。片段内注释沿用改版前的旧节号——『见 3.2』对应本章 4.2（选择建模与数量边界）。
 
 <!-- compile decls -->
 ```kotlin
@@ -210,71 +363,124 @@ class DetailViewModel : ViewModel() {
 }
 ```
 
-几个设计决定的理由：
+片段 130 多行，别逐行啃。先建立「阅读地图」——十来个字段分四组，每组回答一个问题：
 
-- **详情与评论并发、错误分级**。详情失败是「页面失败」，整页进错误态；评论失败是「区块失败」，`commentError` 只让评论区显示错误与重试，概览条仍然来自已成功的 `detail`，不掀翻整页。这与第 83 章头部区块「失败保旧数据」是同族策略：**谁有资格掀翻整页，在写第一行代码时就想清楚**。`pageError` 从此只由详情主请求写入——它驱动的是常驻错误 UI，职责单一才好推理。
-- **换商品时评论分页状态整体归位**。`loadDetail` 的清零清单里有 `commentPageNo/commentHasMore/commentError/commentLoading` 四件套——少任何一个都会残留旧商品的进度。最典型的漏洞是旧 `hasMore=true` 残留：切到新商品后它的评论首页还没成功（甚至已经失败）时，「查看更多」按钮就可能亮着，一点就直接请求新商品的**第二页**，跳过了首页。归位之后，「**首页成功前不得加载下一页**」由 `hasMore` 的初值天然保证：它只在首页成功路径上被置 true，`loadMoreComments` 的 `!commentHasMore` 开关在此之前一直关着。同理 `addCartLoading` 也归位——它是「当前展示商品的加购按钮」状态，旧商品的迟到响应无权碰它（`seq` 校验挡住），不归位就会把新页面的按钮永久禁用。
-- **翻页失败的过程推演（字段级）**。2001、pageSize=2：首页成功 → `comments=[id1,id2]`、`commentPageNo=1`、`hasMore=true`、`commentError=null`。点「查看更多」→ 请求 `pageNo=2` 失败 → catch 只写 `commentError`，**列表、页码、hasMore 原样保留** → 已加载的 2 条评论还在，按钮变成「加载失败，点击重试」。再点 → `loadMoreComments` 请求的仍是 `commentPageNo + 1 = 2`（页码没动，重试的就是失败的那一页）→ 成功 → 追加 `[id5,id6]`、页码=2、`hasMore=false`、错误清空 → 按钮消失。这套「**进度字段只在成功路径前进**」的纪律与第 83 章商品流一致。
-- **为什么 Map 是整体替换，不能原地改**。`selectedSpecValues` 声明为只读的 `Map`，`selectSpecValue` 里 `+ (groupId to valueId)` / `- groupId` 都生成**新 Map** 再赋回字段。快照系统追踪的是 `mutableStateOf` 这个「盒子」的写——对盒子赋新值，读过的组合作用域才失效；若改存 `MutableMap` 并原地 `put`，盒子里的对象没换，快照层看不到任何写，选了 chip 页面纹丝不动。这是 Compose 的组合拳：**容器可变（状态对象），内容尽量不可变（值对象）**——想要「内容级」的细粒度通知，就得付「每次复制新集合」的代价，几个规格值的规模下完全值得。
-- **`addToCart` 的守卫有三层**：UI 按钮禁用（第一层）、`matchedSku ?: return`（第二层）、`addCartLoading || stock <= 0`（第三层）。UI 的禁用是体验，VM 的兜底是正确性——回调链一长，总有人会绕过按钮直接调方法。`addCartLoading` 的归属要明确：它是**发起代际**的按钮状态，响应回来时 `seq` 对不上就不碰它（新代际已在 `loadDetail` 里归位），迟到响应无权解锁别人的按钮。
-- **两层反馈：全局事实与页面提示分开**。`onCartChanged` 表达「购物车变了」这个**全局事实**——即使响应回来时页面已切到别的商品（`seq` 对不上），迟到成功仍要通知外层刷角标（第 87 章接上）；`onPageFeedback` 是**本页一次性提示**，只对发起代际生效——页面已经不在展示那个商品，再弹「已加入购物车」就是误导。为什么不用状态字段装这种提示？`var addCartSuccess by mutableStateOf(false)` 这类布尔「一次性状态」有两个坑：重组可能重复消费同一状态（Snackbar 弹两次），消费后还得手动清零（忘了就永远「成功」）。把加购失败写进 `pageError` 也是同族错误：`pageError` 是**持久错误状态**，驱动常驻错误 UI、重试成功才清；拿它喂 `LaunchedEffect(msg)` 弹 Snackbar，键不变就不重放（连续两次相同失败第二次不弹），配置变化重进组合还可能重放旧值。**持久状态装「页面的现状」，一次性回调装「刚发生的事件」**——消费边界不同，别混用。若某天需要提示也扛过转屏，标准做法是 VM 持有可消费字段（`cartFeedback` + `consume()` 清除方法），UI 展示后立刻清空——那是「状态承载的一次性事件」，消费边界由清除方法显式划定。
-- **`catch(Exception)` 之前先放行取消**。退出页面时 `viewModelScope` 会取消在途请求，`CancellationException` 同样会被 `catch(Exception)` 接住——不处理就会把「离开页面」当成失败写进错误态。所有 catch 都先接 `CancellationException` 原样抛出，理由第 82 章 3.3 讲过，这里照做。
+| 组 | 字段 | 先猜：缺了会怎样？ |
+| --- | --- | --- |
+| 详情数据 | `detail` / `pageLoading` / `pageError` | 整页三态无从分派；`pageError` 若被加购也写入，会被详情错误顶掉或顶掉详情错误（4.5 翻车 3） |
+| SKU 选择 | `selectedSpecValues` / `quantity` | chip 没有状态可依；换 SKU 数量不收紧、超库存下单（4.2 已推演） |
+| 评论分页 | `comments` / `commentLoading` / `commentHasMore` / `commentError`（+私有 `commentPageNo`） | 换商品后旧进度残留、直接翻第二页（4.4 翻车 1 当主角）；在途重入与尾页两道闸门复用第 83 章同原理，4.4 先猜后看 |
+| 加购反馈 | `addCartLoading`（+私有 `spuId` / `loadSeq`） | 迟到响应解锁别人的按钮、误弹别人的错误提示（4.5 翻车 4）；慢网连点：仅缺 UI 禁用被 VM 拦下，两层守卫都缺才重复提交（4.6 猜 3 分层拆解） |
+
+猜不出答案没关系，4.4、4.5 都从翻车现场讲起，回头再对照这张表。
+
+片段里还有三处细节，与第 83 章一脉相承：
+
+- **`catch(Exception)` 之前先放行取消**。退出页面时 `viewModelScope` 会取消在途请求，`CancellationException` 同样会被 `catch(Exception)` 接住——不处理就会把「离开页面」当成失败写进错误态（往一个不存在的页面写状态）。所有 catch 都先接 `CancellationException` 原样抛出，理由第 82 章 3.3 讲过。
 - **`retry()` 而不是暴露 `spuId`**。重试语义就是「用同一个 id 再来一次」，把 id 留在 VM 私有字段里，Screen 不需要知道它。`retryComments` 同理，而且它**不自增** `loadSeq`——重试不是换商品；若重试期间恰好换了商品，响应照样被 `seq` 校验丢弃。
+- **`matchedSku`/`maxQuantity` 是普通 getter、没有缓存**：组合中每次读都现算，联动依赖「每次读都重算」（把 `matchedSku` 缓存成字段、忘了同步更新的翻车在常见错误里）。开销可忽略——`skuList` 只有几个元素。
 
-### 3.2 SKU 匹配：集合相等，不按顺序
+### 4.4 评论分页：先猜数据源，再看两场翻车
 
-这是本章的核心教学点。`matchedSku` 的判定分两层。
+**先猜一个数据源问题**：详情响应里的 `reviewInfo` 自带一条预览评论（`list` 字段），首屏评论列表直接拿它铺上行不行？——不行。预览与 `comment/page` 第一页是**重叠关系**：预览是「精选一条给你看看氛围」，分页接口第一页会把同一条再发一遍。先拼预览再拼第一页，同一条评论在页面上出现两次。所以契约定死：`reviewInfo` 只做概览条（评论数、好评率），列表数据一律走 `comment/page`，两边不拼接。mock 数据还有个佐证：概览条 `reviewCount=3` 与列表 `total=4` 对不上——两个接口独立维护、数据并不严格对齐，谁也别当谁的数据源（第 5 节执行时亲手验一遍）。
 
-**第一层：未选齐必为 null。** `selectedSpecValues.size != specGroups.size` 直接返回 null。因为 Map 的键是规格组 id、每组只可能存一个值，size 就是「已选组数」；只要还有任何一组没选，就不存在合法 SKU。底部按钮的「请选择规格」禁用态、SKU 区不出现价格预览，都靠这一层。
-
-**第二层：集合相等。** 把已选的规格值 id 与候选 SKU 的 `specValueIds` 都转成 `Set` 再比较。以 2001（单规格组）为例：
-
-```text
-selectedSpecValues = { 组1id -> 11 }              已选集合 = { 11 }
-SkuDto(51011).specValueIds = [11]        toSet() = { 11 }   → 相等，命中
-SkuDto(51012).specValueIds = [12]        toSet() = { 12 }   → 不等，跳过
-```
-
-单规格组看不出顺序问题，因为只有一个元素。真实工程的多规格组才是重灾区——假设「规格 [11,12] × 香型 [21,22]」四个 SKU，后端组装 `specValueIds` 时按自己的 join 顺序给了 `[21, 11]`：
+**翻车 1：切商品，评论状态残留。** `loadDetail` 里那一长串清零不是仪式感，少一条都有洞。把坏版本定准——**清零清单里评论相关的赋值整段漏掉**：不止 `commentPageNo/commentHasMore/commentError/commentLoading` 四件套，连 `comments = emptyList()` 也没有（`detail`、SKU 选择等其余归位照旧）。看时间线：
 
 ```text
-已选：{ 规格 -> 11, 香型 -> 21 }                  已选集合 = { 11, 21 }
-SkuDto.specValueIds = [21, 11]           toSet() = { 11, 21 }   → 集合相等，命中
-若按 List 直接比较：[11, 21] == [21, 11]          → false，漏匹配
+时间线（loadDetail 完全不归位评论状态的版本）：
+t0  进 2001 → 评论首页成功：comments=[1,2]（2001 的）、commentPageNo=1、commentHasMore=true
+t1  切 2002 → loadDetail(2002) 照常发出 2002 的评论首页请求，失败了
+    ——评论相关字段全是 2001 的旧值：comments=[1,2]、commentPageNo=1、commentHasMore=true，
+      只有 commentError 被 catch 写成 2002 的失败文案
 ```
 
-Kotlin 的 `List ==` 是结构相等：**长度相同且逐下标元素相同**才算相等，顺序敏感。所以按下标 zip、逐位对表、直接 `==` 三种写法，只要后端组装顺序与前端假设不一致就会落空，症状是「明明选了存在的组合却提示无货」。集合语义的适用条件要交代清楚：规格值 id 在商品内不重复（ymq 契约如此）；若后端允许同 id 跨组复用，就得先按组配对再比较。
+**t1 之后页面是什么样？先猜三个问题**：评论列表显示谁的数据？「查看更多评价」按钮在不在、文案是什么？点它会请求第几页？对照：
 
-**联动是自动的，但作用域要说准。** `matchedSku` 是普通 getter、没有缓存：组合中每次读它，都会顺带读取 `selectedSpecValues`（以及 `detail`）。快照系统的规则是：**状态一变，本次组合里读过它的作用域失效重组**。所以选规格后，失效的是「读了 `selectedSpecValues` / `matchedSku` 的那些作用域」。在 3.3 的代码里，`DetailScreen` 自己就读了 `vm.matchedSku`（按钮文案与 enabled 都靠它），所以 DetailScreen 的作用域会重组；`SkuSection` 等子组件收到的参数若没变、类型又可跳过（第 46、47 章的稳定性与强跳过模式），就可以整体跳过。联动效果已经达成，但**「只重组 SKU 区」不是快照系统免费送的保证**——它取决于读取发生在哪个作用域、参数是否变化、编译器的跳过策略。想把失效范围收窄，就把读取下沉：比如让价格预览成为单独的小组件，只在它内部读 `matchedSku`。选齐后展示的价格用 `matchedSku.price`（精确到 SKU），基础信息区的 `basicInfo.price` 是 SPU 级展示价（通常是起价），两者职责不同、并不冲突。
+```text
+t2  列表：comments 非空 → 评论区展示的还是 2001 的两条旧评论
+t3  按钮：走「已有数据」分支；残留的 commentHasMore=true 让翻页条目还在，
+    commentError（2002 的首页失败文案）被渲染成按钮上方的红色小字，按钮文案随之变成「加载失败，点击重试」
+t4  点击 → loadMoreComments 请求 spuId=2002、pageNo=commentPageNo+1=2
+    ——用户以为在「重试」，实际请求的是 2002 的第二页：首页被整个跳过
+```
 
-**数量边界只管「本次添加」。** `maxQuantity` 取 `matchedSku?.stock ?: 1`，它的适用范围与不适用范围都要交代：
+t4 是最伤的一步，症状可以一句话说全：**展示旧商品的评论，并跳过新商品的首页**。2002 的评论首页明明失败了，用户看到的却是 2001 的旧评论加一个能点的按钮；文案说「重试」，语义却被偷换成「翻第二页」。若 2002 的评论只有一页，第二页拉回空列表、`hasMore` 变 false、按钮消失——页面上留下的还是 2001 的评论，2002 自己的评论永远不上屏。修复就是片段 `loadDetail` 的清零清单：`comments` 连同四件套整体归位，再加上 `addCartLoading`（它是「当前展示商品的加购按钮」状态，不归位就会把新页面的按钮永久禁用——4.5 翻车 4 再看它）。归位之后，「**首页成功前不得加载下一页**」由 `hasMore` 的初值天然保证：它只在首页成功路径上被置 true，`loadMoreComments` 的 `!commentHasMore` 开关在此之前一直关着——不需要任何「首页是否成功」的额外标志位。
 
-- **未选齐**：`matchedSku == null`，上限落在兜底的 1。此时数量展示的 1 是**占位**，不是「有效数量 1」——真正的拦截是加购按钮禁用，「＋」也按不动。
-- **选齐**：上限 = 该 SKU 库存。`incQuantity` 挡在上限；`selectSpecValue` 换 SKU 后若当前数量超过新库存，立即收紧。
-- **库存 0**：预览区显示「库存 0」、按钮「已售罄」、数量停在 1（占位）。mock 六个 SKU 库存全部大于 0，这个分支触发不到，属于防御性代码。
-- **库存 1**：数量停在 1，「＋」「－」都禁用。mock 同样没有库存 1 的 SKU，逻辑上由 `quantity < maxQuantity` 与 `quantity > 1` 两个条件自然覆盖。
-- **切到低库存 SKU**：见下面的连续推演，这是 mock 里唯一能实际复现「收紧」的路径。
-- **它不包含购物车已有数量，也不包含限购**：`quantity <= stock` 只约束**本次**添加；购物车里已有的同一 SKU 数量不在本页视野里。`SkuDto` 没有 `purchaseLimit` 字段——那是购物车条目（`CartItemDto.purchaseLimit`）才有的数据，详情页拿不到也不该编造；mock 的 `cart/add` 对已有条目**直接累加、没有任何超量拒绝**，不能指望服务端兜底。真实工程的完整校验要么让详情接口直接带出限购，要么加购前调校验接口（mock 里就有 `POST app-api/shop-product/spu/checkCartQuantity`，按 `stock - 已加数量` 返回可加余量）。第 85 章拿到 `purchaseLimit` 后，购物车步进器把单条上限夹到 `min(stock, purchaseLimit)`——「本次还能加多少 = min(库存, 限购) − 购物车已有」，要等购物车数据在场才算得清。
+**翻车 2（字段级推演）：翻页失败，进度字段动不动？** 2001、pageSize=2。每一步先猜各字段的值，再对照片段：
 
-**一个连续推演（2001，mock 可复现）：**
+1. 首页成功 → `comments=[id1,id2]`、`commentPageNo=1`、`hasMore=true`、`commentError=null`。
+2. 点「查看更多」→ 请求 `pageNo=2` 失败 → **先猜：comments 会被清空吗？页码会前进吗？** → 对照：catch 只写 `commentError`，**列表、页码、hasMore 原样保留**——已加载的 2 条评论还在，按钮变成「加载失败，点击重试」。
+3. 再点 → **先猜：这次请求的是第几页？** → `loadMoreComments` 请求的仍是 `commentPageNo + 1 = 2`（页码没动，重试的就是失败的那一页）→ 成功 → 追加 `[id5,id6]`、页码=2、`hasMore=false`、错误清空 → 按钮消失。
 
-1. 初始：未选任何规格。SKU 区无价格预览、加购按钮「请选择规格」禁用、数量「＋」按不动（占位 1）。
-2. 点「24包整箱」（51011）：预览出现 ¥49.90/库存 78，按钮变「加入购物车」，数量最多可加到 78。
-3. 数量加到 37。
-4. 切「12包尝鲜」（51012）：预览变 ¥29.90/库存 36——37 超过新上限，`selectSpecValue` 立即把数量收紧为 36。这就是 clamp 的复现路径：**上限随 SKU 变小，数量跟着收紧**。
-5. 再点一次「12包尝鲜」取消选择：预览隐藏、数量回 1、按钮回「请选择规格」禁用。
+这套「**进度字段只在成功路径前进**」的纪律与第 83 章商品流一致（失败不推进状态，重试才有意义）。评论四态（首屏 loading、成功为空、首页失败、下一页失败）在 UI 上怎么区分，4.6 的片段里看。
 
-推演全程，顶部 SPU 轮播图与基础信息区的 `¥49.90/箱` **不变**——那是 `basicInfo` 的 SPU 级内容；跟着 SKU 走的只有 SKU 预览区（价格/库存/规格名）与数量上限。还有一个数据边界：mock 里 51011/51012 的 `imgUrl` 是**同一个 URL**，切 SKU 看不到换图——图片联动的验收只能看「价格与库存文案变化」，不能承诺视觉换图；真实工程多 SKU 各自带图，才有换图效果。
+**两道闸门的先猜后看（第 83 章同原理的评论版）。** `loadMoreComments` 开头的 `if (commentLoading || !commentHasMore) return` 与第 83 章商品流 `loadMore` 的双闸门同款，快速过一遍：
 
-**一个已知的教学简化**：ymq 版本进页面会用第一个有库存的 SKU 自动初始化选择（`firstInStockSku`），我们刻意从「未选」开始，让「选齐才可加购」的判定路径可见。mock 里 2003、2004、2005、2011 都是单规格值单 SKU，用户必须点一下唯一的 chip 才能加购——把它改成「单规格值自动选中」是很好的练习（提示：在 `loadDetail` 成功后判断 `specGroups.all { it.specValueList.size == 1 }`）。
+1. **先猜**：首页成功后快速连点两次「查看更多」，第一次的请求还没回来——第二次点击会请求第几页？→ 对照：**不发请求**。第一次点击已把 `commentLoading` 置 true，第二次进入方法直接被第一道闸门 `return`。若删掉这道闸门，两次请求都带 `commentPageNo + 1`——同一个页码发两遍，成功后同一页评论还会被拼接两遍（第 83 章 4.3 翻车 1 的「重复请求同一页」）。
+2. **先猜**：尾页加载完 `hasMore=false`、按钮都消失了，`!commentHasMore` 这道闸还有必要吗？→ 对照：按钮消失只是 UI 层不再触发；闸门防的是**绕过按钮的调用方**——回调链一长，总有人直接调 `loadMoreComments()`（与 4.5 加购守卫同一个理由）。没有它，任何时机调用都会再发一次 `pageNo+1`，尾页之后永远多请求一页空列表（第 83 章 4.3 翻车 2 的「尾页死循环」）。
 
-### 3.3 页面与子组件
+最后补错误分级：`loadDetail` 里两个 `launch` 天然并发——**详情主请求决定整页 loading/错误态；评论是区块请求，失败只写 `commentError`**，概览条仍然来自已成功的 `detail`，评论区自己显示错误 + 重试，不掀翻整页。这与第 83 章头部区块「失败保旧数据」是同族策略：**谁有资格掀翻整页，在写第一行代码时就想清楚**。`pageError` 从此只由详情主请求写入——它驱动常驻错误 UI，职责单一才好推理（4.5 马上看到违反这条的翻车）。
+
+### 4.5 加购：三层守卫与两层反馈
+
+加购是「读当前状态 → 发请求 → 反馈结果」三步，每一步都有翻车版本。
+
+**翻车 3：加购反馈写进持久状态。** 失败方向最顺手的写法是复用现成的 `pageError`：
+
+```kotlin
+// 伪代码：加购反馈写进持久 pageError，UI 用 LaunchedEffect 监听弹 Snackbar
+// VM 侧
+catch (e: Exception) { pageError = "加购失败：${e.message}" }
+// UI 侧
+LaunchedEffect(vm.pageError) { if (vm.pageError != null) snackbarHostState.showSnackbar(vm.pageError!!) }
+```
+
+先猜两个场景：同一个错误连出两次，Snackbar 弹几次？失败提示弹过后转屏，旧错误会不会重放？
+
+对照：`LaunchedEffect` 的键是 `pageError` 的**值**——第一次失败后它停在「加购失败：xxx」，第二次相同失败赋的是**同一个字符串**，键没变，副作用不重启，**第二次不弹**。转屏（配置变化）重建组合，`LaunchedEffect` 重新执行，带着旧值又跑一遍——**离开现场的错误重放**。
+
+成功方向有个同样顺手的变体——用布尔状态装「加购成功」（第 8 节检查题 5 考的就是它）：
+
+```kotlin
+// 伪代码：加购成功用布尔状态通知 UI，组合体里读到 true 就弹提示
+// VM 侧
+var addCartSuccess by mutableStateOf(false)
+    private set
+// 成功路径上：addCartSuccess = true
+// UI 侧（错误示范：副作用直接写在组合体里，没有消费边界）
+if (vm.addCartSuccess) { scope.launch { snackbarHostState.showSnackbar("已加入购物车") } }
+```
+
+先猜：一个只有 true/false 的布尔，比 `pageError` 还简单，能出什么问题？对照，还是两个：
+
+- **可能重复提示**——注意限定条件：普通重组**不会**重启同键的 `LaunchedEffect`（键值不变，副作用不重跑），「弹两次」并非重组的必然产物；它出在**缺少正确副作用与消费控制的写法**上。像上面这样把「弹提示」直接写在组合体里，这段代码每次重组都会重新执行，只要 `addCartSuccess` 停在 true，任何引发该处重组的变化（同屏别的区块刷新、键盘弹出）都会再弹一次；多个消费方各自监听同一个布尔、又互不清零，也是同款重复。
+- **消费后要清零**——就算把弹提示包进 `LaunchedEffect(addCartSuccess)`，消费完也得手动 `addCartSuccess = false`；忘了清零，true 就永远留在状态里：转屏重建组合，`LaunchedEffect` 重新执行，带着旧值把「已加入购物车」再弹一遍——与 `pageError` 的转屏重放同根，只是方向相反（一个是旧失败，一个是旧成功）。
+
+两个变体病根相同：把「一次性事件」装进了「持久状态」——`pageError` 是页面的现状（驱动常驻错误 UI、重试成功才清），不清零的 `addCartSuccess` 也成了永久现状；Snackbar 是刚发生的事件（弹完即逝）。所以片段里 `addToCart` 的反馈走回调参数 `onPageFeedback`——成功/失败都在对应时刻恰好回调一次，不占任何持久状态。一句纪律：**持久状态装「页面的现状」，一次性回调装「刚发生的事件」**——消费边界不同，别混用。若某天需要提示也扛过转屏，标准做法是 VM 持有可消费字段（`cartFeedback` + `consume()` 清除方法），UI 展示后立刻清空——那是「状态承载的一次性事件」，消费边界由清除方法显式划定。
+
+**翻车 4：加购 A 在途，切到商品 B。** 这次只动一个变量：`addToCart` 保持回调方案不变，**删掉代际校验**（`val seq = loadSeq` 与三处 `if (seq == loadSeq)`），其余照旧：
+
+```text
+时间线（addToCart 删掉代际校验、其余不变的版本）：
+t0  在 2001（记作 A）选好规格点加购 → 请求带着 A 的 skuId 发出，addCartLoading=true
+t1  快速切到 2002（记作 B）→ loadDetail(B)：状态归位把 addCartLoading 复位为 false，页面开始展示 B
+t2  用户在 B 上选好规格点加购 → B 的请求发出，addCartLoading=true（此刻 A、B 两个加购在途）
+t3  A 的请求迟到失败返回 → seq 校验已删：失败提示照常回调，finally 里 addCartLoading=false 也照常执行
+```
+
+**先猜两个问题（t3 时）**：A 的迟到失败，会不会在 B 的页面上误弹提示？它顺手执行的 `addCartLoading = false`，会不会提前解除 B 按钮的 loading？对照：**两个都会。** 提示侧——`onPageFeedback` 无条件回调，B 的页面弹出一条 A 的「加购失败」；用户刚发起的是 B 的加购（还在途），却先看到一条自己没发起的失败提示。按钮侧——t3 的 `addCartLoading = false` 把 B 的按钮从 loading 态解出来（B 自己的请求还没回来），按钮恢复可点，慢网下再点一次就是 B 的重复提交。
+
+修复就是片段里的 `val seq = loadSeq`：`addToCart` 发起时**只读**当前序号（不自增——加购不是换商品），响应回来时 `seq` 对不上就什么都不碰——`onPageFeedback` 不调用、`addCartLoading` 不收尾。新代际已在 `loadDetail` 里把 `addCartLoading` 归位，迟到响应无权解锁（或重新禁用）别人的按钮。但有一个刻意的例外要说清楚：**`onCartChanged` 不做 `seq` 校验**。「购物车变了」是**全局事实**——哪怕页面已经切到 2002，2001 那次加购确实成功了，外层的购物车角标就该刷新（第 87 章接上）；迟到的失败同理不回调。两层反馈的分工由此定形：**全局事实（迟到也要送达）与页面提示（只属于发起代际）分开**——页面已经不在展示那个商品，再弹「已加入购物车」就是误导。
+
+**守卫有三层**：UI 按钮禁用（第一层，体验）、`matchedSku ?: return`（第二层）、`addCartLoading || stock <= 0`（第三层）。UI 的禁用是体验，VM 的兜底是正确性——回调链一长，总有人会绕过按钮直接调方法，缺一层就赌「所有调用方都记得检查」。契约侧再补一句：`addCart` 返回的 `data=false` 是业务拒绝（库存不足等）；mock 成功路径固定返回 true，片段里 `if (ok)` 的检查是对齐契约的防御。回调都在主线程执行（`viewModelScope` 默认调度），碰 Compose 状态与 `SnackbarHostState` 都安全（第 29 章）。
+
+### 4.6 页面与子组件：哑组件 + 一个 LazyColumn
 
 子组件全是「数据 + 回调」的哑组件，图片统一用 Coil 的 `AsyncImage`（[官方仓库](https://github.com/coil-kt/coil)，版本为本仓库基线快照）；`viewModel()` 取实例见 [ViewModel 文档](https://developer.android.com/topic/libraries/architecture/viewmodel)。四个子组件的分工：`DetailBanner`（轮播 + 页码角标）、`SkuSection`（规格选择 + 数量步进 + 命中预览）、`CommentItem`（单条评论）、`DetailScreen` 自己组装三态与底部操作栏。
 
 `detailHtml` 是教学取舍：Compose 的 `Text` 不渲染 HTML，把 HTML 字符串直接塞 `Text` 得到的是一屏标签源码；真实工程用 WebView 或富文本组件渲染（还要处理宽度自适应与图片占位）。本章 `detailType` 恰为 `images`、`detailHtml` 为空串，只铺图即可完整展示。
 
-组件的来路与授权要分清，别把链接用错对象：`FilterChip` 是 material3 组件，版本状态看 [material3 releases](https://developer.android.com/jetpack/androidx/releases/material3)（本仓库基线内为稳定 API）；`HorizontalPager`/`rememberPagerState` 属 `androidx.compose.foundation.pager`，**不是 material3**——它们自 Foundation 1.7 起已稳定，版本来龙去脉见第 32 章 3.3 与[官方 Pager 指南](https://developer.android.com/develop/ui/compose/layouts/pager)；`TopAppBar` 在本仓库基线仍是实验 API，练习工程要自写 `@OptIn(ExperimentalMaterial3Api::class)`（第 6 章先例）；基础 `FlowRow` 在基线内也已稳定（第 8A 章）。另有一个工程差异容易踩：仓库的片段生成工程会为所有片段统一加 `@file:OptIn(...)`，只为让节选片段能编译——**它不代表正文声明过 opt-in**；你自己的练习工程没有这层兜底，该写的 `@OptIn` 一处都不能少（审计命令见 README「代码示例编译校验」）。
+组件的来路与授权要分清，别把链接用错对象：`FilterChip` 是 material3 组件，版本状态看 [material3 releases](https://developer.android.com/jetpack/androidx/releases/material3)（本仓库基线内为稳定 API）；`HorizontalPager`/`rememberPagerState` 属 `androidx.compose.foundation.pager`，**不是 material3**——它们自 Foundation 1.7 起已稳定，版本来龙去脉见第 32 章 3.3 与[官方 Pager 指南](https://developer.android.com/develop/ui/compose/layouts/pager)；`TopAppBar` 在本仓库基线仍是实验 API，练习工程要自写 `@OptIn(ExperimentalMaterial3Api::class)`（第 6 章先例）；基础 `FlowRow` 在基线内也已稳定（第 8A 章）。另有一个工程差异容易踩：仓库的片段生成工程会为所有片段统一加 `@file:OptIn(...)`，只为让节选片段能编译——**它不代表正文声明过 opt-in**；你自己的练习工程没有这层兜底，该写的 `@OptIn` 一处都不能少（审计命令见 README「代码示例编译校验」）。还有一处读法提示：下方片段的注释沿用改版前的旧节号——本章的『3.1/3.2』对应现在的 4.3/4.2，『第 83 章 3.3/3.4』对应第 83 章 4.5。
 
 <!-- compile decls -->
 ```kotlin
@@ -572,18 +778,24 @@ fun MallDetailEntry(spuId: Long, onBack: () -> Unit, onOpenCart: () -> Unit, onC
 }
 ```
 
-实现细节逐条说：
+阅读地图：`DetailScreen` 是唯一同时接触 vm 与子组件的地方——三态分派在最外层 `when`，子组件们只管自己那块。进片段细读前，先猜四个小问题，每个都藏着本章的坑：
 
-- **三态分派的边界是 `detail == null`**。`pageLoading && detail == null` 才整页转圈——注意 `loadDetail` 会先把 `detail` 清空，所以重试/换商品必然回到整页 loading，这是刻意选择（详情页旧数据属于另一个商品，保留反而误导；第 83 章首页「保旧数据」的前提是数据同源）。`pageError != null && detail == null` 才整页错误；两者都不满足就进内容分支。`pageError` 只由详情主请求写入，`detail != null` 时它必然为空，不存在「内容在屏又叠一个整页错误」的分支。
-- **评论四态用两个维度区分**：`comments` 空/非空 × `commentError` 有/无，再加 `commentLoading` 兜住请求中的空窗。首屏 loading（转圈）、成功为空（「暂无评价」）、首页失败（错误 + 重试按钮，**不是**「暂无评价」——用户需要知道这是「还没拿到」而不是「没有」）、下一页失败（列表保留 + 常驻错误提示 + 按钮变「加载失败，点击重试」）。`commentError` 兼了两份职：首页失败驱动区块错误态、翻页失败驱动按钮文案——它们都是**常驻 UI**，由持久状态驱动是正确的；这和加购反馈（一次性 Snackbar，走回调）正好构成「持久状态 vs 一次事件」的两面。列表数据一律来自 `comment/page`，预览评论 `reviewInfo.list` 不拿来补位。
+**猜 1：整页三态的分派边界为什么是 `detail == null`，而不是「`pageLoading`/`pageError` 有值就接管」？** `pageLoading && detail == null` 才整页转圈——注意 `loadDetail` 会先把 `detail` 清空，所以重试/换商品必然回到整页 loading，这是刻意选择（详情页旧数据属于**另一个商品**，保留反而误导；第 83 章首页「保旧数据」的前提是数据同源，这里不成立）。`pageError != null && detail == null` 才整页错误；而 `pageError` 只由详情主请求写入，`detail != null` 时它必然为空，不存在「内容在屏又叠一个整页错误」的分支——4.5 翻车 3 若发生，这条不变量就被打破，这是不把加购失败写进 `pageError` 的又一个理由。
+
+**猜 2：评论区能不能用「暂无评价」一个分支兜住所有空列表？** 不能。首屏失败要显示「错误 + 重试」——用户需要知道这是「还没拿到」而不是「没有」；「暂无评价」只在**成功且为空**时才成立。四态用两个维度区分：`comments` 空/非空 × `commentError` 有/无，再加 `commentLoading` 兜住请求中的空窗。`commentError` 兼了两份职：首页失败驱动区块错误态、翻页失败驱动按钮文案——它们都是**常驻 UI**，由持久状态驱动是正确的；这和加购反馈（一次性 Snackbar，走回调）正好构成「持久状态 vs 一次事件」的两面（4.4、4.5 各翻过一次车）。列表数据一律来自 `comment/page`，预览评论 `reviewInfo.list` 不拿来补位。
+
+**猜 3：加购按钮的 `enabled` 少写 `addCartLoading` 或 `stock > 0` 各会怎样？** 先提醒：VM 里还有 `if (addCartLoading || sku.stock <= 0) return` 这道守卫（4.5 的第三层），所以要分两种情况猜——**仅 UI 少写**（VM 守卫还在）：按钮在 loading 中/零库存时依然可点，但点击被 VM 的 `return` 静默拦下、请求根本不发——功能上没有错，体验上是缺陷：按钮给了「可点」的视觉承诺却不兑现，用户会当成「点了没反应」的 bug 上报；**UI 与 VM 两层都缺**：慢网下连点两次，两次请求都发出，购物车里多出两份；零库存点加购，必败请求发给服务端。这正是「UI 管体验、VM 管正确性」的分工：少 UI 一层是体验缺陷，两层都少才是正确性事故。文案矩阵四档：未选齐→「请选择规格」；选齐但无匹配→「该组合暂无」（mock 组合齐全触发不到，真实工程是硬需求）；有 SKU 无库存→「已售罄」；正常→「加入购物车」。
+
+**猜 4：`DetailBanner` 的页码角标 `1/2` 随翻页变，为什么不需要 `LaunchedEffect` 监听翻页事件？** 角标直接读 `pagerState.currentPage`——它本身就是状态，翻页时值变化，读了它的作用域自动失效重组，角标文本跟着变。「UI 是状态的函数」不需要事件驱动。片段注释里那句「翻页失效的是 DetailBanner 内读取它的作用域，页内容 lambda 没读它」正是第 46、47 章作用域粒度的活例子：Pager 与页内容能否跳过，取决于参数与稳定性。
+
+四个实现细节补充：
+
 - **`SkuSection` 是状态提升的教科书案例**（回看第 24 章）：`FilterChip` 的 `selected` 完全由父传下的 Map 推导，chip 自己不存任何状态。好处立竿见影——「再点一次取消」不需要组件配合，`onClick` 照样回传 `(groupId, valueId)`，由 VM 决定是选中还是取消；组件复用时也没有隐藏状态要清理。
-- **加购按钮的文案矩阵**：未选齐→「请选择规格」；选齐但无匹配→「该组合暂无」（mock 组合齐全触发不到，真实工程是硬需求）；有 SKU 无库存→「已售罄」；正常→「加入购物车」。`enabled` 只看 `sku != null && sku.stock > 0 && !vm.addCartLoading`——少了 `addCartLoading` 会重复提交，少了库存判断会把必败请求发给服务端。
-- **两层反馈在 onClick 的接法**：`onCartChanged` 原样上抛给外层（导航接线里它通向角标刷新，第 85、87 章），`onPageFeedback` 用页面的 `scope` 弹 Snackbar。回调从 VM 的协程里发起，`viewModelScope` 默认调度在主线程，碰 Compose 状态和 `SnackbarHostState` 都安全（回看第 29 章）。要留意一个转屏边界：回调捕获的是**发起时的组合环境**——加购在途时转屏，角标回调（外层提供，引用导航级对象）不受影响，本页 Snackbar 却可能因旧 `scope` 已取消而静默丢失；按钮的 loading 状态不受影响（`addCartLoading` 是 VM 字段）。要彻底修复，就把提示改成 3.1 说的可消费字段方案，由转屏后的新组合消费。
-- **评论翻页用按钮而不是触底加载**：mock 每个商品只有 2—4 条评论，触底判定在小列表上展示不出效果；「查看更多评价」按钮把「点击→loading→追加/重试/消失」的循环演得明明白白。要把评论区改成触底加载，第 83 章 3.4 的 `derivedStateOf + LaunchedEffect` 原样可用，记得键里加 `comments.size`。
-- **`LazyColumn` 的 key 限定的是身份**：固定区块用字符串 key（`"banner"`、`"sku"`……），评论用 `it.id`。key 把条目身份钉住——翻页追加时已有条目仍关联同一份数据，不做无谓的销毁重建，追加导致图片重新加载的闪烁根源被「身份稳定」排除；但 key **不承诺零重组**：数据内容变化该重组还是重组，子组件能否跳过取决于参数与稳定性（第 17、46 章）。
-- **图文明细用 `ContentScale.FillWidth`**：详情长图只约束宽度、高度按比例展开，这是电商详情页的标准做法；`detailImages` 用 `forEach` 铺在 item 内部即可，图片张数少不需要单独的懒条目。
+- **两层反馈在 onClick 的接法**：`onCartChanged` 原样上抛给外层（导航接线里它通向角标刷新，第 85、87 章），`onPageFeedback` 用页面的 `scope` 弹 Snackbar。要留意一个转屏边界：回调捕获的是**发起时的组合环境**——加购在途时转屏，角标回调（外层提供，引用导航级对象）不受影响，本页 Snackbar 却可能因旧 `scope` 已取消而静默丢失；按钮的 loading 状态不受影响（`addCartLoading` 是 VM 字段）。要彻底修复，就换成 4.5『翻车 3』末尾说的可消费字段方案，由转屏后的新组合消费。
+- **评论翻页用按钮而不是触底加载**：mock 每个商品只有 2—4 条评论，触底判定在小列表上展示不出效果；「查看更多评价」按钮把「点击→loading→追加/重试/消失」的循环演得明明白白。要把评论区改成触底加载，第 83 章 4.5 的 `derivedStateOf + LaunchedEffect` 原样可用，记得键里加 `comments.size`。
+- **`LazyColumn` 的 key 限定的是身份**：固定区块用字符串 key（`"banner"`、`"sku"`……），评论用 `it.id`。key 把条目身份钉住——翻页追加时已有条目仍关联同一份数据，不做无谓的销毁重建，追加导致图片重新加载的闪烁根源被「身份稳定」排除；但 key **不承诺零重组**：数据内容变化该重组还是重组，子组件能否跳过取决于参数与稳定性（第 17、46 章）。图文明细用 `ContentScale.FillWidth`：详情长图只约束宽度、高度按比例展开，这是电商详情页的标准做法；`detailImages` 用 `forEach` 铺在 item 内部即可，图片张数少不需要单独的懒条目。
 
-### 3.4 导航接入：spuId 从哪来
+### 4.7 导航接入：spuId 从哪来
 
 详情页靠路由参数携带 `spuId`（模式见[导航文档](https://developer.android.com/develop/ui/compose/navigation)，语法回看第 4 章）。下面的示意给出**可接通的最小完整接线**：`startDestination` 有对应目的地、「cart」有占位目的地、首页入口的 `onOpenProduct` 实际导航：
 
@@ -641,11 +853,11 @@ fun MallApp() {
 - **`startDestination` 与每个 `navigate` 的目标都必须有对应目的地**。`NavHost` 启动时找不到 `startDestination`、或导航到一个未注册的 route，都会直接抛异常崩掉——示意代码里每个 route 都要真实存在，「cart」先给占位目的地（第 85 章替换为真正的购物车页，第 87 章再整合进底部导航主框架），入口才是可接通的。
 - **`spuId` 是商品（SPU）id，不是 SKU id**。2001 是 SPU，51011/51012 是它下面的 SKU——详情页先拿 SPU 全量数据，买哪个 SKU 由页内选择决定，所以路由只带 SPU id。ymq 版本还支持营销链接直达某个 SKU（外部传入 `specifiedSkuId` 自动补全选择），那是另一条入口，本章不展开。
 - **参数异常要有说明地兜底**。路由声明了 Long 型路径参数，正常导航一定带值；`?: 0L` 兜的是「手工拼路由漏参」这类异常。拿到 0 不带说明地直接发请求，mock 会返回「商品不存在」——看似也有兜底，实际是把可预见的参数错误当成运行时故障演示，错误文案还会误导排查；入口处拦下、给出提示并允许返回，比打一枪再显示错误页更诚实。
-- **`viewModel()` 的作用域是当前 backstack entry**。`LocalViewModelStoreOwner` 在 NavHost 的每个目的地内被替换为对应的 `NavBackStackEntry`，所以 `MallDetailEntry` 里的 `viewModel()` 每个 entry 各取各的 `DetailViewModel`：先看 2001 再看 2002 是两个 entry、两个 vm、互不串台；按返回键销毁 entry，vm 随之清理（`onCleared`），不会泄漏。也因此，`loadDetail` 的「换商品」路径（同一个 vm 先后加载不同 spuId）在当前接线下不常触发——但方法契约必须自洽：重试、未来的单 entry 详情页、或调试时直接连续调用 `vm.loadDetail(2001)`/`vm.loadDetail(2002)`，都会走这条路，3.1 的状态归位与 `loadSeq` 校验为它兜底。
+- **`viewModel()` 的作用域是当前 backstack entry**。`LocalViewModelStoreOwner` 在 NavHost 的每个目的地内被替换为对应的 `NavBackStackEntry`，所以 `MallDetailEntry` 里的 `viewModel()` 每个 entry 各取各的 `DetailViewModel`：先看 2001 再看 2002 是两个 entry、两个 vm、互不串台；按返回键销毁 entry，vm 随之清理（`onCleared`），不会泄漏。也因此，`loadDetail` 的「换商品」路径（同一个 vm 先后加载不同 spuId）在当前接线下不常触发——但方法契约必须自洽：重试、未来的单 entry 详情页、或调试时直接连续调用 `vm.loadDetail(2001)`/`vm.loadDetail(2002)`，都会走这条路，4.3 的状态归位与 `loadSeq` 校验为它兜底。
 - **`LaunchedEffect(spuId)` 必须幂等**。转屏（配置变化）会重建整个组合，`LaunchedEffect` 重新执行——但 VM 活着、`detail` 还在，无条件 `loadDetail` 就会白白发一次请求、页面还闪一下 loading。Entry 里的守卫 `if (vm.detail?.basicInfo?.id != spuId)` 只在「没加载过这个商品」时才发请求。这个守卫模式和第 23 章的 `rememberSaveable` 是互补的：UI 位置类状态（`PagerState` 内部自带保存）交给框架，业务数据交给 VM。
 - **`onCartChanged` 是一条预留的管道**。本章外层只放一个注释占位；第 85 章购物车页会依赖「详情页改过购物车」这个事实，第 87 章主框架的角标靠它刷新。回调穿过导航边界传进来，就是为了让数据变更的通知不依赖全局单例——教程阶段够用，真实工程可换成事件总线或共享 ViewModel。加购在途时按返回键离开详情页，`viewModelScope` 取消在途请求，回调不会触发——但请求可能已发出、服务端可能已记账，角标要等下次刷新才对齐；「离开页面也保证送达与通知」需要应用级作用域（第 87 章的全局角标 VM 主动重拉正是这个思路）。
 
-## 4. 实际执行过程
+## 5. 实际执行过程（先猜 → 操作 → 对照）
 
 1. **准备与契约验证**。启动 mock 后先重置，保证起点一致：
 
@@ -653,7 +865,7 @@ fun MallApp() {
    curl http://localhost:3001/__reset
    ```
 
-   注意重置会清掉你之前练习写入的购物车改动（加购、改数量都会还原）。然后验证契约——**SKU 在 `data.skuInfo.skuList`，不是 `data.skuList`**：
+   注意重置会清掉你之前练习写入的购物车改动（加购、改数量都会还原）。**猜**：把 id 换成 2006 会返回什么？概览条的评论数与分页接口的 total 一致吗？→ **操作**：先验详情——**SKU 在 `data.skuInfo.skuList`，不是 `data.skuList`**：
 
    ```bash
    curl -X POST http://localhost:3001/app-api/shop-product/spu/detail \
@@ -669,12 +881,12 @@ fun MallApp() {
         -H "Content-Type: application/json" -d '{"spuId":2001,"pageNo":2,"pageSize":2}'
    ```
 
-   第一页返回 ids `[1,2]`、`total=4`、`hasMore=true`；第二页返回 `[5,6]`、`hasMore=false`。概览条的 `reviewCount=3` 与列表 `total=4` 对不上是 mock 数据自身不严格对齐——恰好证明两个接口独立，谁也别当谁的数据源。
-2. **App 打开 2001**（首页商品卡点击）：轮播 2 张图可横滑、右下角角标 `1/2` 随翻页变；基础信息区 `¥49.90/箱` + 划线 `¥59.90`、标签「次日达、新人价」、「购买可得 620 积分」；页面尾部 2 张详情长图。
-3. **SKU 交互（按 3.2 的连续推演走一遍）**：初始无价格预览、按钮「请选择规格」禁用、「＋」按不动；点「24包整箱」→ 预览 ¥49.90/库存 78、按钮解禁；数量加到 37；切「12包尝鲜」→ 预览 ¥29.90/库存 36，数量自动收紧为 36；再点「12包尝鲜」取消 → 预览隐藏、数量回 1、按钮回禁用。全程顶部轮播与 `¥49.90/箱` 不变；两 SKU 图同 URL，看不到换图。单规格商品（如 2004 大米）只有一个 chip，也必须点一下才能加购——3.2 末尾的教学简化。
-4. **拼团标签**：从首页打开 2002「山茶油洗衣液」，`groupBuyInfo` 非空，基础信息区出现红色「拼团」标签；2001 没有该标签。
-5. **评论分页**：2001 概览条「商品评价(3) · 好评率 98.5%」+ 首屏 2 条；第一条「团团妈」五星、带图、下方灰底「商家回复：感谢支持」；第二条显示「匿名用户」（`anonymous=true`）。点「查看更多评价」→ 按钮转圈 → 追加 2 条 → 按钮消失（`hasMore=false`）。
-6. **评论失败态**：首屏成功后**停掉 mock**，再点「查看更多评价」→ 出现错误提示、已加载的 2 条保留、按钮变「加载失败，点击重试」；重启 mock 再点 → 追加成功（重试请求的仍是第二页）。评论**首页**失败在 mock 上无法单独制造（停 mock 时详情会先失败），要实际看到「错误 + 重试」分支，最简单的办法是临时把 VM 里 `loadComments` 一行改成 `throw IllegalStateException("评论加载失败")`——验证区块错误态不掀整页、重试按钮工作，验完改回。
+   第一页返回 ids `[1,2]`、`total=4`、`hasMore=true`；第二页返回 `[5,6]`、`hasMore=false`。**对照**：2006 果然 `code=1`（2001—2005、2011 之外的推荐流 id 都没详情数据）；概览条的 `reviewCount=3` 与列表 `total=4` 对不上是 mock 数据自身不严格对齐——恰好证明两个接口独立，谁也别当谁的数据源（4.4 的数据源纪律有了实证）。
+2. **App 打开 2001**（首页商品卡点击）：**猜**：轮播角标会随横滑变吗？→ **操作**：轮播 2 张图可横滑、右下角角标 `1/2` 随翻页变；基础信息区 `¥49.90/箱` + 划线 `¥59.90`、标签「次日达、新人价」、「购买可得 620 积分」；页面尾部 2 张详情长图。**对照**：角标直接读 `pagerState.currentPage`（4.6 猜 4），没有事件监听也跟着变。
+3. **SKU 交互**：按 4.2 的连续推演走一遍，每步先猜再对照：**猜** 初始状态 → 无价格预览、按钮「请选择规格」禁用、「＋」按不动；点「24包整箱」→ **猜** 预览与按钮 → 预览 ¥49.90/库存 78、按钮解禁；数量加到 37；切「12包尝鲜」→ **猜** 37 的下场 → 预览 ¥29.90/库存 36，数量自动收紧为 36；再点「12包尝鲜」取消 → **猜** 回到什么状态 → 预览隐藏、数量回 1、按钮回禁用。全程顶部轮播与 `¥49.90/箱` 不变；两 SKU 图同 URL，看不到换图。单规格商品（如 2004 大米）只有一个 chip，也必须点一下才能加购——4.2 末尾的教学简化。
+4. **拼团标签**：**猜** 2001 与 2002 谁有「拼团」标签？→ **操作**：从首页打开 2002「山茶油洗衣液」，`groupBuyInfo` 非空，基础信息区出现红色「拼团」标签；2001 没有该标签。
+5. **评论分页**：**猜**：第二页加载完成后「查看更多评价」按钮会变成什么？→ **操作**：2001 概览条「商品评价(3) · 好评率 98.5%」+ 首屏 2 条；第一条「团团妈」五星、带图、下方灰底「商家回复：感谢支持」；第二条显示「匿名用户」（`anonymous=true`）。点「查看更多评价」→ 按钮转圈 → 追加 2 条 → 按钮消失（`hasMore=false`）。**对照**：翻页前后概览条的数字不动——它来自 `reviewInfo`，列表来自 `comment/page`，两个数据源互不越界。
+6. **评论失败态**：**猜**：首屏成功后停掉 mock 再点「查看更多评价」，已加载的 2 条还在吗？重试时请求的是第几页？→ **操作**：首屏成功后**停掉 mock**，再点「查看更多评价」→ 出现错误提示、已加载的 2 条保留、按钮变「加载失败，点击重试」；重启 mock 再点 → 追加成功（重试请求的仍是第二页——4.4 翻车 2 的推演原文重演）。评论**首页**失败在 mock 上无法单独制造（停 mock 时详情会先失败），要实际看到「错误 + 重试」分支，最简单的办法是临时把 VM 里 `loadComments` 一行改成 `throw IllegalStateException("评论加载失败")`——验证区块错误态不掀整页、重试按钮工作，验完改回。
 7. **加购闭环**：先记录当前值（不要假设固定数字——取决于你是否刚重置、之前是否加过）：
 
    ```bash
@@ -682,28 +894,29 @@ fun MallApp() {
    curl http://localhost:3001/app-api/shop-trade/cart/list
    ```
 
-   App 里选 24包整箱、数量 1，点「加入购物车」→ 按钮转圈 → Snackbar「已加入购物车」。再查一遍：`cart/count` 应比刚才 **+1**，`cart/list` 里 `skuId=51011` 的条目（预置 id 91001）`quantity` **+1**（刚 reset 过时是 2→3、10→11）。增量对账，不硬编码基数；如果你此前用 curl 直接调过 `cart/add` 或多加了数量，基数就变了——curl 加购与 App 加购会**累加到同一条目**，别把两次增量当成一次。
-8. **失败态**：从首页点推荐流里的 2006—2010、2012—2014 任一商品 → 整页「商品不存在」+ 重试按钮；对 2006 点重试仍失败（业务态持续存在，不是网络抖动），返回再进 2001 正常。停掉 mock 造网络错误态：出现网络连接错误信息——文案不承诺固定字符串，`MallRepo` 优先保留底层异常的 `message`（如连接失败详情），兜底文案「网络异常，请稍后重试」只在 `message` 为空时出现。停 mock 期间连点两次加购，相同文案的 Snackbar 应弹两次（每次失败都回调一次）。
-9. **切商品的状态归位**：当前导航接线下每个详情 entry 各有 VM，跨商品串台不会发生；验证 `loadDetail` 的归位契约可用临时接线（把首页 `onOpenProduct` 固定改成先 `2001` 后 `2002` 的两次 `loadDetail`，或直接在调试里连续调用）。配合第 6 步的临时 `throw` 让 2002 的评论首页失败：页面不得出现「查看更多评价」按钮——旧商品的 `hasMore` 已被 `loadDetail` 归位。
-10. **转屏**：详情在屏时旋转模拟器，数据保留、不重新出现整页 loading（Entry 的幂等守卫生效，VM 存活）；轮播页码也停在原页（`PagerState` 自带保存）；加购失败提示弹出后转屏，旧错误不重弹；加购在途转屏，按钮转圈状态由 VM 恢复、响应回来后收起（本页 Snackbar 可能因回调捕获旧作用域而丢失，正文 3.3 有说明）。
+   **猜**：App 里选 24包整箱、数量 1，点「加入购物车」后，`cart/count` 与 `cart/list` 里 `skuId=51011` 条目各怎么变？→ **操作**：点加购 → 按钮转圈 → Snackbar「已加入购物车」。再查一遍：`cart/count` 应比刚才 **+1**，`cart/list` 里 `skuId=51011` 的条目（预置 id 91001）`quantity` **+1**（刚 reset 过时是 2→3、10→11）。**对照**：增量对账，不硬编码基数；如果你此前用 curl 直接调过 `cart/add` 或多加了数量，基数就变了——curl 加购与 App 加购会**累加到同一条目**，别把两次增量当成一次。
+8. **失败态**：**猜**：点开 2006 再点重试，会像网络错误一样「再试一次说不定就好了」吗？→ **操作**：从首页点推荐流里的 2006—2010、2012—2014 任一商品 → 整页「商品不存在」+ 重试按钮；对 2006 点重试仍失败（业务态持续存在，不是网络抖动），返回再进 2001 正常。停掉 mock 造网络错误态：出现网络连接错误信息——文案不承诺固定字符串，`MallRepo` 优先保留底层异常的 `message`（如连接失败详情），兜底文案「网络异常，请稍后重试」只在 `message` 为空时出现。**再猜**：停 mock 期间连点两次加购，相同文案的 Snackbar 弹几次？→ **操作**：弹两次（每次失败都回调一次——4.5 翻车 3 里「第二次不弹」的病根在这里被回调方案避开）。
+9. **切商品的状态归位**：当前导航接线下每个详情 entry 各有 VM，跨商品串台不会发生；验证 `loadDetail` 的归位契约可用临时接线（把首页 `onOpenProduct` 固定改成先 `2001` 后 `2002` 的两次 `loadDetail`，或直接在调试里连续调用）。**猜**：2001 评论翻过页、hasMore 曾为 true，切到 2002 且它的评论首页失败，页面上会出现「查看更多评价」吗？→ **操作**：配合第 6 步的临时 `throw` 让 2002 的评论首页失败：页面不得出现「查看更多评价」按钮——旧商品的 `hasMore` 已被 `loadDetail` 归位（4.4 翻车 1 的 t3 被堵死）。
+10. **转屏**：**猜**：旋转模拟器，页面会闪一次整页 loading 吗？旧错误会重弹吗？→ **操作**：数据保留、不重新出现整页 loading（Entry 的幂等守卫生效，VM 存活）；轮播页码也停在原页（`PagerState` 自带保存）；加购失败提示弹出后转屏，旧错误不重弹（回调不占持久状态，4.5 翻车 3 的第二症状被避开）；加购在途转屏，按钮转圈状态由 VM 恢复、响应回来后收起（本页 Snackbar 可能因回调捕获旧作用域而丢失，正文 4.6 有说明）。
 11. 验证完全部后 `curl http://localhost:3001/__reset` 还原 mock 数据——注意这会清除本轮练习写入的购物车变更。
 
-## 5. Flutter/ymq 对照
+## 6. Flutter/ymq 对照
 
 对照 ymq 的 `ProductDetailController`（GetX，`product_detail_controller.dart` 及其 `part` 扩展文件）：
 
-- **选择状态建模与通知机制**：它用「按规格组下标的 `List<int?>`」平行数组存选择，还要 `_specValueGroupIndex` 反查表把规格值 id 映射回组下标——因为 chip 的点击回传的是值 id，得先反查才知道该写进哪个下标。我们的 `Map<组id, 值id>` 键即身份，反查表直接省掉。通知方式上，按 ymq 源码，SKU 扩展里选择后调的是**无参数** `update()`——广播给该控制器下**所有** `GetBuilder` 子树 rebuild，这和第 83 章首页控制器用的 `update([id])`（只通知挂了对应 id 的子树）是两种通知；SKU 弹窗这类「一变多处」的局部 UI，ymq 干脆选了全量广播省心。我们这边靠快照系统自动失效——**职责对应**（选择变了，相关 UI 跟着变），机制不同（手动广播 vs 自动追踪），粒度取舍也不同（它选粗粒度全刷，我们的失效范围跟着读取作用域走）。
-- **匹配语义**：它的 `_syncSelectedSku` 用 `selectedIds.every(specIds.contains)`——「已选的每个值都在候选里」的**包含判断**，同样不依赖顺序，但比集合相等**弱**：候选比已选多元素也会命中。反例：已选 `{11, 21}`、候选 `specValueIds=[11,21,31]`（后端数据冗余或脏数据）——包含判断命中这个错误 SKU，集合相等不命中。在「已选齐、且每个 SKU 的 `specValueIds` 恰好每组一个值」的合法数据前提下，两边结果一致。我们用 `toSet()` 相等是有意的从严：宁可显示「该组合暂无」也不误命中脏数据，配合前置的 size 判定刚好构成完整防御。
-- **默认选中**：它的 `initSkuSelection` 会取 `firstInStockSku`（或外部带入的 `specifiedSkuId`，比如剪贴板营销链接直达某 SKU）自动补全所有规格组；我们从「未选」开始，把判定路径留给教学（3.2 末尾给了自动选中的练习）。
+- **选择状态建模与通知机制**：它用「按规格组下标的 `List<int?>`」平行数组存选择，还要 `_specValueGroupIndex` 反查表把规格值 id 映射回组下标——因为 chip 的点击回传的是值 id，得先反查才知道该写进哪个下标。我们的 `Map<组id, 值id>` 键即身份，反查表直接省掉（4.2 讲选择建模时说过）。通知方式上，按 ymq 源码，SKU 扩展里选择后调的是**无参数** `update()`——广播给该控制器下**所有** `GetBuilder` 子树 rebuild，这和第 83 章首页控制器用的 `update([id])`（只通知挂了对应 id 的子树）是两种通知；SKU 弹窗这类「一变多处」的局部 UI，ymq 干脆选了全量广播省心。我们这边靠快照系统自动失效——**职责对应**（选择变了，相关 UI 跟着变），机制不同（手动广播 vs 自动追踪），粒度取舍也不同（它选粗粒度全刷，我们的失效范围跟着读取作用域走）。
+- **匹配语义**：它的 `_syncSelectedSku` 用 `selectedIds.every(specIds.contains)`——「已选的每个值都在候选里」的**包含判断**，正是第 3 节翻车 2 的写法：同样不依赖顺序，但比集合相等**弱**——候选比已选多元素也会命中。反例：已选 `{11, 21}`、候选 `specValueIds=[11,21,31]`（后端数据冗余或脏数据）——包含判断命中这个错误 SKU，集合相等不命中。在「已选齐、且每个 SKU 的 `specValueIds` 恰好每组一个值」的合法数据前提下，两边结果一致。我们用 `toSet()` 相等是有意的从严：宁可显示「该组合暂无」也不误命中脏数据，配合前置的 size 判定刚好构成完整防御。
+- **默认选中**：它的 `initSkuSelection` 会取 `firstInStockSku`（或外部带入的 `specifiedSkuId`，比如剪贴板营销链接直达某 SKU）自动补全所有规格组；我们从「未选」开始，把判定路径留给教学（4.2 末尾给了自动选中的练习）。
 - **规格值可达性**：它的 `isSpecValueEnabled` 会判断「该值与其他组已选值组合后是否存在有库存的 SKU」，不存在就灰置不可点；我们的 chip 全部可点，无货组合要选齐后才在按钮上体现——真实工程要做的可达性过滤，是很好的进阶练习。
 - **数量边界**：它用 `_isPurchaseCountOverStock` 判断 + `_showMaxCountToast` 提示；我们在 `incQuantity/selectSpecValue` 里直接 clamp（静默收紧，教学从简）。两边对详情页的约束都止于库存——限购同样要等购物车/校验接口的数据。
 - **图片联动**：它维护「最近交互规格值」缓存 `_lastInteractedSpecValueId` 与多级回退链，让弹窗顶部图在两个规格组来回切换时跟随用户最后一次点击；我们只认 `matchedSku?.imgUrl`，未命中不换图——简化取舍，多规格带图时它的方案更贴近真实体验。
 - **首屏并发**：它的 `requestInitialData` 用 `Future.wait([详情, 评价列表, 购物车角标])` 汇合后才收 loading；角标请求单独 try/catch 静默降级（和我们评论「区块错误态、不掀整页」同一思路——它连区块错误 UI 都不做，更简）。我们 `loadDetail` 里两个 `launch` 天然并发，收尾只由详情请求的 `finally` 决定整页态。
-- **加购入口**：它的 `buyProduct` 先校验 `isSkuSelectionComplete`，不完整弹 toast「请选择完整的规格」；我们直接禁用按钮（文案矩阵见 3.3），加 VM 内 `matchedSku ?: return` 兜底——UI 拦截是体验，VM 拦截是正确性。
+- **加购入口**：它的 `buyProduct` 先校验 `isSkuSelectionComplete`，不完整弹 toast「请选择完整的规格」；我们直接禁用按钮（文案矩阵见 4.6 猜 3），加 VM 内 `matchedSku ?: return` 兜底——UI 拦截是体验，VM 拦截是正确性。
 
-## 6. 常见错误
+## 7. 常见错误
 
 - **`specValueIds` 按顺序匹配**：`List ==`、按下标 zip、逐位对表，只要后端组装顺序与前端假设不一致就会 miss，症状是「选了存在的组合却提示无货」；必须两边 `toSet()` 比集合相等。单规格组的 mock 数据测不出这个 bug；多规格组一旦后端顺序与前端假设不一致，上线即漏匹配。
+- **用包含判断代替集合相等**：`selected.all { specIds.contains(it) }` 会在候选多出元素时误命中（已选 `{11,21}` 命中 `[11,21,31]`）；合法等长前提下两者才等价，数据不干净时宁可「该组合暂无」。
 - **未选齐就加购**：`matchedSku` 为 null 时强解引用价格/库存是 NPE；把 0 当 skuId 发出去是必然业务失败。按钮禁用 + VM 兜底两层都要，缺一层就赌「所有调用方都记得检查」。
 - **评论首屏拼接两个接口**：先拼 `reviewInfo.list` 再拼 `comment/page` 第一页，同一条评论出现两次——预览与分页第一页数据重叠。`reviewInfo` 只做概览条，列表一律走 `comment/page`。
 - **切商品不防旧响应、不归位旧状态**：2001 的迟到详情/评论覆盖 2002 的页面，`commentPageNo` 停在 2001 的页码上继续翻，旧 `hasMore=true` 让新商品的翻页按钮直接跳第二页。`loadSeq` 发前自增、回后校验；`loadDetail` 把评论分页四件套与 `addCartLoading` 一并归位。
@@ -712,11 +925,11 @@ fun MallApp() {
 - **`LaunchedEffect(spuId)` 无条件加载**：转屏后组合重建、副作用重新执行，VM 里数据还好好的却重发请求、闪一次 loading；入口副作用要幂等（已加载同一 id 就跳过）。
 - **把 `matchedSku` 缓存成字段**：`selectSpecValue` 忘了同步更新缓存，价格/库存联动就失灵——联动依赖「每次读都现算」。getter 每次重算的开销可忽略（skuList 只有几个元素），不要手动缓存。
 - **`selectedSpecValues` 改存 `MutableMap` 原地 put**：快照系统只认「状态盒子的写」，原地改内容它看不见，UI 不刷新；必须 `+`/`-` 生成新 Map 赋回。
-- **加购按钮忘了 `addCartLoading`**：慢网下连点两次，购物车里多出两份；`enabled` 里带上 loading 标志，VM 里再挡一层。
+- **加购按钮忘了 `addCartLoading`**：仅 UI 少写，点击被 VM 守卫静默拦下、不发请求——体验缺陷（按钮可点却无响应，像「点了没反应」的 bug）；UI 与 VM 两层都缺，慢网下连点两次购物车里才真多出两份。`enabled` 里带上 loading 标志（体验），VM 里再挡一层（正确性）。
 - **加购成功不通知外层**：角标滞留旧值，用户「加了购物车数字没变」直接当 bug 上报；成功回调 `onCartChanged` 是最小闭环，第 87 章接到全局。
 - **`catch(Exception)` 吞掉 `CancellationException`**：退出页面时在途请求被取消，取消异常若被当失败处理，就是往一个不存在的页面写错误态（第 82 章 3.3 的透传原则，每个 catch 都要先放行取消）。
 
-## 7. 检查题
+## 8. 检查题
 
 1. `matchedSku` 里如果写成 `it.specValueIds == selectedSpecValues.values.toList()`，在什么数据下会漏匹配？为什么 `toSet()` 不会？这个 bug 为什么在 mock 上测不出来？
 2. `selectedSpecValues` 用 `Map<组id, 值id>` 而不是按组下标的 `List<Long>`，省掉了 ymq 版本里的哪张表？那张表在那里承担什么职责？
@@ -727,7 +940,7 @@ fun MallApp() {
 7. `selectedSpecValues` 若改存 `MutableMap` 并原地 `put`，页面会发生什么？快照系统为什么不认为这是一次写？
 8. 加购 A 在途时 `loadDetail(B)` 已执行：A 的响应回来时，`onCartChanged` 与 `onPageFeedback` 各自该不该被调用？`addCartLoading` 为什么只在 `seq` 对得上时才收尾？
 
-## 8. 验收标准
+## 9. 验收标准
 
 - [ ] 2001 详情：轮播横滑、页码角标随翻页更新；价格/划线价/单位/标签/积分/已售信息完整
 - [ ] 未选规格时加购按钮禁用（「请选择规格」）、数量不可加；选齐后价格/库存联动（mock 两 SKU 图同 URL，验收只看价格与库存文案变化）；再点一次 chip 可取消回到未选齐
@@ -741,6 +954,6 @@ fun MallApp() {
 - [ ] 转屏后数据保留、不重新出现整页 loading、轮播停留在原页
 - [ ] `python3 tools/extract_snippets.py` 与严格编译对本章片段通过
 
-## 9. 总结
+## 10. 总结
 
-详情页 = 一个大嵌套 DTO + 一组字段化状态：`Map<组id, 值id>` 建模选择（整体替换赋回，不原地改）、`toSet()` 集合相等命中 SKU、`loadSeq` 防旧响应且换商品时把评论分页与加购状态一并归位、`reviewInfo` 与 `comment/page` 各管一段、评论区用「列表空/非空 × 错误有/无」区分四态、`detailHtml` 让位给 `detailImages`。SKU 联动没有任何手动通知——快照系统让读取相关状态的作用域自动失效重组，粒度取决于读取发生在哪、参数变没变；事件类反馈分两层：购物车变更是全局事实（迟到成功也要通知角标），页面提示是一次性回调（只属于发起代际）。下一章进入购物车：分组列表 + 数量增删改 + 三态条目，把本章的 `onCartChanged` 接成闭环。
+详情页 = 一个大嵌套 DTO + 一组字段化状态：`Map<组id, 值id>` 建模选择（整体替换赋回，不原地改）、`toSet()` 集合相等命中 SKU、`loadSeq` 防旧响应且换商品时把评论分页与加购状态一并归位、`reviewInfo` 与 `comment/page` 各管一段、评论区用「列表空/非空 × 错误有/无」区分四态、`detailHtml` 让位给 `detailImages`。SKU 联动没有任何手动通知——快照系统让读取相关状态的作用域自动失效重组，粒度取决于读取发生在哪、参数变没变；事件类反馈分两层：购物车变更是全局事实（迟到成功也要通知角标），页面提示是一次性回调（只属于发起代际）。教学主线回放一遍：从「顺序匹配 + 包含判断」两次翻车出发得到集合相等的两层判定；最小版跑通标题价格后暴露「加购需要 skuId」引出问卷与答案表；评论分页先用「预览拼接」翻车划清两个数据源，再用时间线翻车逼出四件套归位；加购的两次翻车（持久状态装事件、迟到响应写脏新页面）分别引出一次性回调与两层反馈。下一章进入购物车：分组列表 + 数量增删改 + 三态条目，把本章的 `onCartChanged` 接成闭环。
