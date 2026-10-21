@@ -1,6 +1,18 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import MarkdownIt from 'markdown-it'
+import markdownItAnchor from 'markdown-it-anchor'
+import hljs from 'highlight.js/lib/core'
+import bash from 'highlight.js/lib/languages/bash'
+import kotlin from 'highlight.js/lib/languages/kotlin'
+import markdown from 'highlight.js/lib/languages/markdown'
+import plaintext from 'highlight.js/lib/languages/plaintext'
+import powershell from 'highlight.js/lib/languages/powershell'
+import toml from 'highlight.js/lib/languages/ini'
+import xml from 'highlight.js/lib/languages/xml'
+import 'highlight.js/styles/github.css'
+
+;[['bash', bash], ['kotlin', kotlin], ['markdown', markdown], ['text', plaintext], ['powershell', powershell], ['toml', toml], ['xml', xml]].forEach(([name, language]) => hljs.registerLanguage(name, language))
 
 const files = import.meta.glob('../*.md', { eager: true, query: '?raw', import: 'default' })
 const docs = Object.entries(files)
@@ -12,7 +24,31 @@ const docs = Object.entries(files)
   })
   .sort((a, b) => a.number - b.number || a.file.localeCompare(b.file, 'zh-CN'))
 
-const md = new MarkdownIt({ html: true, linkify: true, typographer: true })
+const md = new MarkdownIt({
+  html: true,
+  linkify: true,
+  typographer: true,
+  highlight(code, language) {
+    if (language && hljs.getLanguage(language)) return `<pre class="hljs"><code>${hljs.highlight(code, { language }).value}</code></pre>`
+    return `<pre class="hljs"><code>${md.utils.escapeHtml(code)}</code></pre>`
+  },
+}).use(markdownItAnchor, { permalink: false })
+md.core.ruler.push('compose_callouts', (state) => {
+  const labels = { NOTE: '提示', TIP: '建议', IMPORTANT: '重点', WARNING: '注意', CAUTION: '警告' }
+  for (let i = 0; i < state.tokens.length; i++) {
+    const token = state.tokens[i]
+    if (token.type !== 'inline' || !token.content.startsWith('[!')) continue
+    const match = token.content.match(/^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*/)
+    if (!match) continue
+    token.content = token.content.slice(match[0].length)
+    if (token.children?.[0]?.type === 'text') token.children[0].content = token.children[0].content.replace(match[0], '')
+    const open = state.tokens.slice(0, i).reverse().find((item) => item.type === 'blockquote_open')
+    if (open) {
+      open.attrSet('class', `callout callout-${match[1].toLowerCase()}`)
+      open.attrSet('data-label', labels[match[1]])
+    }
+  }
+})
 const defaultLinkOpen = md.renderer.rules.link_open || ((tokens, idx, options, env, self) => self.renderToken(tokens, idx, options))
 md.renderer.rules.link_open = (tokens, idx, options, env, self) => {
   const token = tokens[idx]
