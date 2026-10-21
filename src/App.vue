@@ -15,6 +15,9 @@ import 'highlight.js/styles/github.css'
 ;[['bash', bash], ['kotlin', kotlin], ['markdown', markdown], ['text', plaintext], ['powershell', powershell], ['toml', toml], ['xml', xml]].forEach(([name, language]) => hljs.registerLanguage(name, language))
 
 const files = import.meta.glob('../*.md', { eager: true, query: '?raw', import: 'default' })
+// README.md 面向维护者（片段标记、验证命令），不上站；站点只展示章节正文
+const HIDDEN_FILES = new Set(['README.md'])
+const HOME_FILE = '00_完整学习规划.md'
 const docs = Object.entries(files)
   .map(([path, content]) => {
     const file = decodeURIComponent(path.split('/').pop())
@@ -22,7 +25,12 @@ const docs = Object.entries(files)
     const number = file.match(/^(\d+)([A-Z]?)/)
     return { id: file, title, content, number: number ? Number(number[1]) : 999, file }
   })
-  .sort((a, b) => a.number - b.number || a.file.localeCompare(b.file, 'zh-CN'))
+  .filter((doc) => !HIDDEN_FILES.has(doc.file))
+  .sort((a, b) => {
+    if (a.file === HOME_FILE) return -1
+    if (b.file === HOME_FILE) return 1
+    return a.number - b.number || a.file.localeCompare(b.file, 'zh-CN')
+  })
 
 const md = new MarkdownIt({
   html: true,
@@ -60,9 +68,10 @@ md.renderer.rules.link_open = (tokens, idx, options, env, self) => {
   return defaultLinkOpen(tokens, idx, options, env, self)
 }
 const query = ref('')
-const activeId = ref(location.hash.slice(1) || 'README.md')
+const activeId = ref(location.hash.slice(1))
 const menuOpen = ref(false)
-const active = computed(() => docs.find((doc) => doc.id === activeId.value) || docs.find((doc) => doc.id === 'README.md') || docs[0])
+const active = computed(() => docs.find((doc) => doc.id === activeId.value) || docs[0])
+const homeDoc = docs[0]
 const currentIndex = computed(() => docs.findIndex((doc) => doc.id === active.value?.id))
 const previousDoc = computed(() => currentIndex.value > 0 ? docs[currentIndex.value - 1] : null)
 const nextDoc = computed(() => currentIndex.value >= 0 && currentIndex.value < docs.length - 1 ? docs[currentIndex.value + 1] : null)
@@ -95,7 +104,7 @@ window.addEventListener('keydown', (event) => {
 <template>
   <header class="topbar">
     <button class="menu-toggle" aria-label="切换目录" @click="menuOpen = !menuOpen">☰</button>
-    <a class="brand" href="#README.md" @click.prevent="select(docs.find(d => d.id === 'README.md') || docs[0])"><span class="brand-mark">H</span><span>Hax Compose101</span></a>
+    <a class="brand" href="#" @click.prevent="select(homeDoc)"><span class="brand-mark">H</span><span>Hax Compose101</span></a>
     <div class="top-actions"><span class="edition">中文教程 · Android Jetpack Compose</span><a href="https://github.com/xiehanff/compose-learning-docs" target="_blank" rel="noreferrer" aria-label="GitHub">GitHub ↗</a></div>
   </header>
   <div class="shell">

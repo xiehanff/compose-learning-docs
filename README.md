@@ -1,6 +1,8 @@
 # Compose 项目完整学习文档（预备篇 + 第 1—80 章）
 
 > [在线阅读（GitHub Pages）](https://xiehanff.github.io/compose-learning-docs/) · 页面采用 GitBook 风格目录，内容由本仓库 Markdown 构建。
+>
+> 本文面向维护者（片段标记、验证命令、站点维护），**不会发布到站点**；面向读者的内容写在根目录章节 `*.md` 里。
 
 > 本仓库的版本基线、平台边界、证据等级和审校规则见 [文档基线与审校规范](文档基线与审校规范.md)。正文中的 API 状态和版本结论都应以该文件及 `snippets/gradle/libs.versions.toml` 为准。
 
@@ -212,3 +214,23 @@ UI 测试、Macrobenchmark 和 Baseline Profile 的测试模块示例未纳入�
 第 79 章示例额外依赖 `androidx.compose.material3.adaptive:adaptive:1.3.0-rc01`（不在 Compose BOM 管理内，已在 `snippets/gradle/libs.versions.toml` 显式声明并纳入编译；片段内的 ListPane/DetailPane/MainContent 为教学占位组件）。
 需要有 Android SDK（`ANDROID_HOME` 或 `snippets/local.properties` 里的 `sdk.dir`，
 需含 platform 36）与 JDK 17+。CI 见 `.github/workflows/snippet-compile.yml`，push / PR 自动跑同一套检查。
+
+## 静态站点（GitHub Pages）
+
+站点把根目录章节 Markdown 渲染成 GitBook 风格的阅读页，内容和目录都直接从章节文件生成，不维护第二份正文。
+
+```bash
+timeout 300 npm ci          # 首次安装（Node 22）
+timeout 120 npm run dev     # 本地预览 http://localhost:5173
+timeout 120 npm run build   # 产出 dist/，自检渲染结果
+```
+
+- 站点代码：`index.html`、`vite.config.js`、`src/App.vue`（Markdown 渲染、目录分组、上下章节导航、搜索）、`src/style.css`（GitBook 风格设计令牌，主题色 `--accent:#fe551b`）、`public/fonts/`（Cascadia Next SC、Google Sans Mono，参考 myblog 的排版方案）。
+- **只有根目录 `*.md` 会上站**；页面标题取文件内第一个一级标题，侧边目录按文件名数字前缀分组（`0` 开始学习、`1—45` 基础篇、`46—80` 进阶篇、其余归入其他文档）。首页固定为 `00_完整学习规划.md`。
+- **`README.md` 不上站**（`src/App.vue` 的 `HIDDEN_FILES`）：它是维护者文档，读者入口是站内规划页。面向读者的内容写进章节，面向维护者的构建/校验/部署说明写在这里。
+- 章节间跳转直接写相对 `.md` 链接，渲染时会改写成站内路由；外部链接原样保留。
+- Markdown 渲染开启 `html: true`、代码高亮、标题锚点，并支持 GitHub 风格提示框（`> [!NOTE]` / `TIP` / `IMPORTANT` / `WARNING` / `CAUTION`）。新增代码块语言需在 `src/App.vue` 注册对应 `highlight.js/lib/languages/*`。
+- 部署：`.github/workflows/pages.yml` 在 push `main` 或手动触发时执行 `npm ci && npm run build` 并发布 `dist/`；子路径由 `vite.config.js` 决定（CI 下为 `/compose-learning-docs/`，本地为 `/`）。
+- 站点发布与片段编译校验相互独立：改章节仍需跑上面的 `extract_snippets.py` + `compileDebugKotlin`。
+
+新增/删除章节文件时，除了 `00_完整学习规划.md`、`章节清单.txt` 和上面的目录，无需额外配置站点——站点会自动收录并归组。
