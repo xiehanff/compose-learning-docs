@@ -7,13 +7,13 @@
 > 本仓库的版本基线、平台边界、证据等级和审校规则见 [文档基线与审校规范](文档基线与审校规范.md)。正文中的 API 状态和版本结论都应以该文件及 `snippets/gradle/libs.versions.toml` 为准。
 
 - 预备篇：面向真正零基础读者，完成环境准备、第一次构建、Gradle 基础与构建报错自救。
-- 第 1—45 章：整理自私有示例工程 `compose_demo` 的源码（工程不在本仓库），覆盖 Compose UI 从入门到中级的基础。
+- 第 1—45 章：整理自一个示例工程的源码（工程不在本仓库），覆盖 Compose UI 从入门到中级的基础。
 - 第 46—80 章：进阶篇，覆盖重组引擎、动画、自定义绘制/布局/手势、架构、性能、测试与发布；并新增 Navigation 3 专题（第 71A 章），按仓库版本基线介绍其 Compose 导航模型；不构成对所有项目的无条件迁移建议。
 - 第 81—87 章：实践篇，以 [ymq-mall-json-server](https://gitee.com/campos/ymq-mall-json-server) 为 mock 后端，用真实 HTTP 接口完成小电商（首页/商品详情/购物车/个人主页）的最小闭环。
 
 零基础读者必须先完成预备篇，再按编号阅读。已有 Android/Gradle 经验的读者可以从第 1 章开始。
 
-> 当前仓库只包含学习文档，没有附带 `compose_demo` 源码。第 1—45 章中的源码路径用于说明原始示例位置；没有该工程的读者，可以先按预备篇创建 Empty Activity 项目，再运行可独立复制的示例。
+> 当前仓库只包含学习文档。第 1—45 章中的源码路径用于说明原始示例位置；读者可以先按预备篇创建 Empty Activity 项目，再运行可独立复制的示例。
 
 ## 文件说明
 
@@ -31,7 +31,7 @@
 
 ## 平台和内容边界
 
-本仓库的目标是 **Android Jetpack Compose**。`Activity`、AndroidX Lifecycle、Hilt、WindowInsets、Navigation 3 等内容不能直接推导为 Compose Multiplatform、Desktop、Wear OS 或 Android TV 的通用结论。第 1—45 章依赖原 `compose_demo` 的源码背景；第 46—80 章使用通用 API 示例。文档不提供完整业务 App，也不以“看完所有 API”代替真实项目中的网络、错误处理、模块化和发布验证。
+本仓库的目标是 **Android Jetpack Compose**。`Activity`、AndroidX Lifecycle、Hilt、WindowInsets、Navigation 3 等内容不能直接推导为 Compose Multiplatform、Desktop、Wear OS 或 Android TV 的通用结论。第 1—45 章基于一个示例工程的源码背景；第 46—80 章使用通用 API 示例。文档不提供完整业务 App，也不以“看完所有 API”代替真实项目中的网络、错误处理、模块化和发布验证。
 
 ## 验证范围
 

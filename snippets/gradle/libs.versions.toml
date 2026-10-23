@@ -1,4 +1,4 @@
-# 版本对齐本地可构建的 compose_demo 工程（/Users/hax/Documents/GitHub/compose_demo）。
+# 版本对齐本地可构建的原示例工程。
 [versions]
 agp = "8.6.1"
 kotlin = "2.3.21"
@@ -36,7 +36,7 @@ androidx-navigation3-runtime = { module = "androidx.navigation3:navigation3-runt
 androidx-navigation3-ui = { module = "androidx.navigation3:navigation3-ui", version.ref = "nav3Core" }
 androidx-lifecycle-viewmodel-navigation3 = { module = "androidx.lifecycle:lifecycle-viewmodel-navigation3", version.ref = "lifecycleViewmodelNav3" }
 kotlinx-serialization-core = { module = "org.jetbrains.kotlinx:kotlinx-serialization-core", version.ref = "kotlinxSerializationCore" }
-# 第 79 章 WindowSizeClass 响应式示例（不是 compose_demo 的依赖，不在 BOM 管理内）。
+# 第 79 章 WindowSizeClass 响应式示例（不在 BOM 管理内）。
 androidx-material3-adaptive = { group = "androidx.compose.material3.adaptive", name = "adaptive", version.ref = "material3Adaptive" }
 # 实践篇（81—87 章）：ymq-mall-json-server 教学链路的依赖。
 retrofit = { group = "com.squareup.retrofit2", name = "retrofit", version.ref = "retrofit" }

@@ -60,7 +60,7 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation(libs.androidx.icons.core)
     implementation(libs.androidx.icons.extended) // 第 54/64 章用到 extended 里的图标（如 Pause、FavoriteBorder）
-    // 第 71A 章 Navigation 3 示例（不是 compose_demo 的依赖）。
+    // 第 71A 章 Navigation 3 示例。
     implementation(libs.androidx.navigation3.runtime)
     implementation(libs.androidx.navigation3.ui)
     implementation(libs.androidx.lifecycle.viewmodel.navigation3)
