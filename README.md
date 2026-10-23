@@ -7,7 +7,7 @@
 > 本仓库的版本基线、平台边界、证据等级和审校规则见 [文档基线与审校规范](文档基线与审校规范.md)。正文中的 API 状态和版本结论都应以该文件及 `snippets/gradle/libs.versions.toml` 为准。
 
 - 预备篇：面向真正零基础读者，完成环境准备、第一次构建、Gradle 基础与构建报错自救。
-- 第 1—45 章：根据 `compose_demo.zip` 源码整理，覆盖 Compose UI 从入门到中级的基础。
+- 第 1—45 章：整理自私有示例工程 `compose_demo` 的源码（工程不在本仓库），覆盖 Compose UI 从入门到中级的基础。
 - 第 46—80 章：进阶篇，覆盖重组引擎、动画、自定义绘制/布局/手势、架构、性能、测试与发布；并新增 Navigation 3 专题（第 71A 章），按仓库版本基线介绍其 Compose 导航模型；不构成对所有项目的无条件迁移建议。
 - 第 81—87 章：实践篇，以 [ymq-mall-json-server](https://gitee.com/campos/ymq-mall-json-server) 为 mock 后端，用真实 HTTP 接口完成小电商（首页/商品详情/购物车/个人主页）的最小闭环。
 
